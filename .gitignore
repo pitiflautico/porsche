@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Dev/AI tools
+ai-export/
+screenshot*.mjs
+package-lock.json
