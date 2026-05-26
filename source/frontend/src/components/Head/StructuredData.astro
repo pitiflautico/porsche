@@ -1,0 +1,173 @@
+---
+import { reunions } from "../../data/reunions-data";
+import type { Locale } from "../../i18n/utils";
+
+interface Props {
+  locale: Locale;
+  canonical?: string;
+}
+
+const { locale, canonical } = Astro.props;
+
+const siteUrl = "https://porschereunions.com";
+const resolvedUrl = canonical ?? siteUrl;
+
+// --- WebPage + Organization ---
+const webPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name:
+    locale === "es"
+      ? "Porsche Owners Reunions | Historias que conectan generaciones"
+      : "Porsche Owners Reunions | Stories that connect generations",
+  description:
+    locale === "es"
+      ? "Descubre Owners Reunions, el proyecto de Porsche que conecta a los distintos dueños de un mismo vehículo para reconstruir la historia de cada auto a través del tiempo."
+      : "Discover Owners Reunions, the Porsche project connecting different owners of the same vehicle to rebuild each car's story across time.",
+  url: resolvedUrl,
+  inLanguage: locale,
+  publisher: {
+    "@type": "Organization",
+    name: "Porsche Latin America",
+    url: "https://www.porsche.com/latam/",
+    logo: {
+      "@type": "ImageObject",
+      url: `${siteUrl}/images/logo-porsche.svg`,
+    },
+  },
+};
+
+// --- FAQPage ---
+type FaqItem = { question: string; answer: string };
+
+const faqData: Record<Locale, FaqItem[]> = {
+  es: [
+    {
+      question: '¿Qué es "There is no substitute"?',
+      answer:
+        "Es la plataforma global de Porsche que celebra la conexión entre sus autos y quienes los conducen.",
+    },
+    {
+      question: "¿Qué es Owners Reunions?",
+      answer:
+        "Es un proyecto que reúne a distintos dueños de un mismo Porsche para reconstruir la historia completa del vehículo a lo largo del tiempo.",
+    },
+    {
+      question: "¿Por qué Porsche conecta a los dueños de un mismo auto?",
+      answer:
+        "Porque cada Porsche acumula experiencias únicas. Al reunir a quienes lo condujeron, es posible entender su historia desde distintas perspectivas.",
+    },
+    {
+      question: "¿Puede participar cualquier dueño de Porsche?",
+      answer: "Sí. Puedes compartir tu historia y formar parte del proyecto.",
+    },
+    {
+      question: "¿Qué sucede si varias personas comparten el mismo vehículo?",
+      answer:
+        "Esa información permite reconstruir su recorrido completo y conectar los distintos momentos de su historia.",
+    },
+    {
+      question: "¿Cómo se seleccionan las historias?",
+      answer:
+        "Se consideran el valor de la historia, la conexión entre propietarios y el significado del vehículo dentro de la comunidad.",
+    },
+  ],
+  en: [
+    {
+      question: 'What is "There is no substitute"?',
+      answer:
+        "It is Porsche's global platform that celebrates the connection between its cars and the people who drive them.",
+    },
+    {
+      question: "What is Owners Reunions?",
+      answer:
+        "It is a project that brings together different owners of the same Porsche to reconstruct the vehicle's complete history over time.",
+    },
+    {
+      question: "Why does Porsche connect owners of the same car?",
+      answer:
+        "Because every Porsche accumulates unique experiences. By reuniting those who drove it, its history can be understood from different perspectives.",
+    },
+    {
+      question: "Can any Porsche owner participate?",
+      answer: "Yes. You can share your story and become part of the project.",
+    },
+    {
+      question: "What happens if multiple people share the same vehicle?",
+      answer:
+        "That information allows us to reconstruct the car's full journey and connect the different moments in its history.",
+    },
+    {
+      question: "How are the stories selected?",
+      answer:
+        "We consider the value of the story, the connection between owners, and the significance of the vehicle within the community.",
+    },
+  ],
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqData[locale].map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: item.answer,
+    },
+  })),
+};
+
+// --- VideoObject (one per reunion) ---
+const videoDescriptions: Record<string, Record<Locale, string>> = {
+  mexico: {
+    es: "La historia de un Porsche 911 T y los cuatro dueños que lo condujeron en Ciudad de México.",
+    en: "The story of a Porsche 911 T and the four owners who drove it in Mexico City.",
+  },
+  colombia: {
+    es: "La historia de un Porsche 356 y tres generaciones de la misma familia en Bogotá.",
+    en: "The story of a Porsche 356 and three generations of the same family in Bogotá.",
+  },
+  peru: {
+    es: "La historia de un Porsche 911 SC y los seis dueños que lo condujeron en Lima.",
+    en: "The story of a Porsche 911 SC and the six owners who drove it in Lima.",
+  },
+};
+
+function toIsoDate(rawDate: string): string {
+  const parts = rawDate.split(".");
+  if (parts.length !== 3) return rawDate;
+  const [dd, mm, yy] = parts;
+  const year = yy.length === 2 ? `20${yy}` : yy;
+  return `${year}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+}
+
+const videoSchemas = reunions.map((r) => ({
+  "@context": "https://schema.org",
+  "@type": "VideoObject",
+  name:
+    locale === "es"
+      ? `${r.model} — Owners Reunion ${r.country}`
+      : `${r.model} — Owners Reunion ${r.countryEn}`,
+  description: videoDescriptions[r.id]?.[locale] ?? "",
+  thumbnailUrl: `${siteUrl}${r.bgDesktop}`,
+  uploadDate: toIsoDate(r.date),
+  contentUrl: `https://www.youtube.com/watch?v=${r.video[locale]}`,
+  embedUrl: `https://www.youtube.com/embed/${r.video[locale]}`,
+}));
+---
+
+<script
+  type="application/ld+json"
+  set:html={JSON.stringify(webPageSchema)}
+/>
+<script
+  type="application/ld+json"
+  set:html={JSON.stringify(faqSchema)}
+/>
+{videoSchemas.map((schema) => (
+  <script
+    type="application/ld+json"
+    set:html={JSON.stringify(schema)}
+  />
+))}

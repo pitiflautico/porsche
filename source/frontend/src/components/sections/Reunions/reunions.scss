@@ -1,0 +1,1481 @@
+@use '../../../styles/variables' as *;
+
+// Section height driven by reunion count (CSS custom property from template)
+.reunions {
+  position: relative;
+  width: 100%;
+  height: calc(var(--reunion-count, 3) * 200vh);
+  background-color: #131310;
+}
+
+// Sticky stage holds canvas, hitboxes, and text panel in the viewport
+// Use svh only: 100dvh tracks the dynamic toolbar on iOS and changes while scrolling,
+// which retriggers canvas resize + WebGL composite rect → visible stretch/jitter.
+.reunions__stage {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+}
+
+// WebGL canvas fills the stage
+.reunions__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  will-change: filter;
+}
+
+// SVG hitbox overlay (same size as canvas, on top)
+.reunions__hitboxes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  pointer-events: none;
+
+  .reunions.is-pinned.is-snapshot-ready & {
+    pointer-events: auto;
+  }
+}
+
+// Text panel: absolute inside the sticky stage
+.reunion {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+  .ctas,
+  a,
+  button {
+    pointer-events: auto;
+  }
+
+  .wrapper {
+    position: relative;
+    height: 100%;
+    align-items: stretch;
+    padding-top: 120px;
+    flex-direction: column !important;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      width: 100%;
+      padding-top: 90px;
+      padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    @media (min-width: ($bp-lg + 1px)) {
+      padding-top: min(12vh, 100px);
+      flex-direction: row !important;
+    }
+
+    @media (min-width: $bp-xl) {
+      padding-top: 20vh;
+    }
+
+    &__aside {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      height: 100%;
+      padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+
+      flex-basis: 90%;
+
+      @media (min-width: ($bp-lg + 1px)) {
+        height: 90%;
+        padding-bottom: 0;
+        min-width: 550px;
+        flex-basis: 35%;
+      }
+
+      @media (min-width: $bp-xl) {
+        height: 80%;
+      }
+    }
+
+    &__main {
+      @media (max-width: ($bp-sm - 1px)) {
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+        height: 35%;
+      }
+
+      @media (min-width: $bp-md) {
+        position: absolute;
+        top: 0;
+        left: 5%;
+        width: fit-content;
+        height: 100%;
+
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+      }
+    }
+  }
+}
+
+// ── Video modal ─────────────────────────────────────────────────────────────
+.reunion-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+
+  &.is-open {
+    pointer-events: auto;
+  }
+
+  // ── Backdrop ──────────────────────────────────────────────────────────────
+  &__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.96);
+    cursor: pointer;
+  }
+
+  // ── Container ─────────────────────────────────────────────────────────────
+  &__container {
+    position: relative;
+    z-index: 1;
+    width: min(96vw, 1600px);
+    aspect-ratio: 16 / 9;
+
+    @media (max-width: $bp-md) {
+      width: 100%;
+      max-width: 100vw;
+      // Legacy → small viewport (URL bar visible) → dynamic (bars show/hide)
+      height: 100vh;
+      height: 100svh;
+      height: 100dvh;
+      aspect-ratio: unset;
+    }
+  }
+
+  &__close {
+    position: absolute;
+    top: max(2.5rem, env(safe-area-inset-top, 0px));
+    right: calc(1rem + env(safe-area-inset-right, 0px));
+    padding: 0.25rem;
+    z-index: 2;
+  }
+
+  // ── Video wrap ────────────────────────────────────────────────────────────
+  &__video-wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+    cursor: default;
+
+    // Transparent shield sits above the iframe (z-index 1) but below controls (z-index 2).
+    // Captures all pointer events so YouTube never receives hover →
+    // no title bar, no channel name, no share button, no watermark interactivity.
+    // When paused (.is-paused), becomes semi-opaque to hide YouTube's "related videos" panel.
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background: transparent;
+      transition: background 0.3s ease;
+    }
+
+    &.is-paused::before {
+      background: linear-gradient(to bottom,
+          rgba(0, 0, 0, 0) 0%,
+          rgba(0, 0, 0, 0.25) 25%,
+          rgba(0, 0, 0, 0.75) 50%,
+          rgba(0, 0, 0, 0.99) 100%);
+    }
+
+    &.is-controls-visible .reunion-modal__controls {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+  }
+
+  // ── YouTube player ────────────────────────────────────────────────────────
+  &__player {
+    width: 100%;
+    height: 100%;
+    display: block;
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border: none;
+    }
+  }
+
+  // ── Loader overlay ────────────────────────────────────────────────────────
+  &__loader {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+
+    &.is-hidden {
+      opacity: 0;
+    }
+  }
+
+  &__spinner {
+    width: 40px;
+    height: 40px;
+    animation: reunion-spin 1.4s linear infinite;
+  }
+
+  &__spinner-track {
+    stroke: rgba(255, 255, 255, 0.1);
+  }
+
+  &__spinner-fill {
+    stroke: $color-brand;
+    stroke-linecap: round;
+    stroke-dasharray: 80 125;
+    animation: reunion-dash 1.4s ease-in-out infinite;
+  }
+
+  // ── Pause info overlay ───────────────────────────────────────────────────
+  &__info {
+    position: absolute;
+    bottom: 9.5rem;
+    left: 0;
+    z-index: 2;
+
+    width: min(100%, 720px);
+    padding: 0 1.375rem;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+
+    .reunion-modal__video-wrap.is-paused.is-controls-visible & {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  &__info-heading {
+    position: relative;
+    margin: 0;
+    font-size: clamp(2.25rem, 2vw, 3rem);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: $letter-spacing;
+    color: $color-brand;
+    line-height: 1;
+    // text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+  }
+
+  &__info-country {
+    display: block;
+    position: absolute;
+    // bottom: -1.785rem;
+    bottom: -1rem;
+    left: -.25rem;
+
+    font-size: clamp(5.5rem, 7vw, 8.5rem);
+    line-height: .9;
+    color: transparent;
+    -webkit-text-stroke: 1px $color-brand;
+    text-transform: uppercase;
+
+    z-index: -1;
+    opacity: .5;
+  }
+
+
+  &__info-detail {
+    margin: 1rem 0 0;
+    font-size: clamp(1.9875rem, 2vw, 3rem);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: $letter-spacing;
+    color: rgba($color-light, 1);
+    line-height: 1.3;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  }
+
+  // ── Custom controls ───────────────────────────────────────────────────────
+  &__controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    padding: 4rem 1rem 0.875rem;
+    // Deep gradient for readability against any video frame
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    pointer-events: none;
+
+    .reunion-modal__video-wrap.is-controls-visible & {
+      pointer-events: auto;
+    }
+  }
+
+  // Progress track
+  &__progress-track {
+    width: 100%;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.22);
+    cursor: pointer;
+    margin-bottom: 0.75rem;
+    position: relative;
+    border-radius: 2px;
+    transition: height 0.15s ease, margin-bottom 0.15s ease;
+
+    &:hover {
+      height: 4px;
+      margin-bottom: calc(0.75rem - 1px);
+
+      .reunion-modal__progress-thumb {
+        opacity: 1;
+      }
+    }
+  }
+
+  &__progress-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 100%;
+    background: $color-brand;
+    border-radius: 2px;
+    transform: scaleX(0);
+    transform-origin: left;
+    pointer-events: none;
+    // Subtle glow on the brand bar
+    box-shadow: 0 0 6px rgba($color-brand, 0.5);
+  }
+
+  &__progress-thumb {
+    position: absolute;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: $color-brand;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    box-shadow: 0 0 4px rgba($color-brand, 0.6);
+  }
+
+  // Controls bar — frosted glass pill
+  &__ctrl-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0);
+    border-radius: 8px;
+    padding: 0.5rem 0.875rem;
+  }
+
+  &__ctrl-left,
+  &__ctrl-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  // Icon buttons
+  &__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    color: rgba(255, 255, 255, 0.85);
+    flex-shrink: 0;
+    border-radius: 2px;
+    transition: color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+
+    border: none;
+    background: transparent;
+
+    // Drop shadow so icons stay readable against any video brightness
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7));
+
+    &:hover {
+      color: #fff;
+      transform: scale(1.1);
+    }
+
+    svg {
+      width: 2rem;
+      height: 2rem;
+      display: block;
+    }
+
+    // Play/Pause — primary action, larger + brand hover
+    &--play {
+      width: 2.25rem;
+      height: 2.25rem;
+      border-radius: 50%;
+      margin-right: 0.125rem;
+
+
+      background: $color-dark;
+      color: $color-brand;
+      border-color: $color-brand;
+      border-width: 2px;
+      border-style: solid;
+
+      svg {
+        width: 1.2rem;
+        height: 1.2rem;
+      }
+
+      &:hover {
+        background: $color-brand;
+        color: $color-dark;
+        // border-width: 2px;
+        // border-style: solid;
+        // transform: scale(1.08);
+      }
+
+      .reunion-modal__icon--pause {
+        display: none;
+        width: 1rem;
+        height: 1rem;
+      }
+
+      .reunion-modal__icon--play {
+        display: block;
+      }
+
+      &.is-playing {
+        .reunion-modal__icon--play {
+          display: none;
+        }
+
+        .reunion-modal__icon--pause {
+          display: block;
+        }
+      }
+    }
+
+    // Mute icon switching
+    &--mute {
+      .reunion-modal__icon--muted {
+        display: none;
+      }
+
+      .reunion-modal__icon--vol {
+        display: block;
+      }
+
+      &.is-muted {
+        color: rgba(255, 255, 255, 0.45);
+
+        .reunion-modal__icon--vol {
+          display: none;
+        }
+
+        .reunion-modal__icon--muted {
+          display: block;
+        }
+      }
+    }
+
+  }
+
+  // Volume group
+  &__vol-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  &__vol-range {
+    width: 0;
+    opacity: 0;
+    cursor: pointer;
+    height: 3px;
+    accent-color: $color-brand;
+    transition: width 0.2s ease, opacity 0.2s ease;
+
+    .reunion-modal__vol-group:hover & {
+      width: 64px;
+      opacity: 1;
+    }
+  }
+
+  // Separator
+  &__ctrl-sep {
+    width: 1px;
+    height: 1rem;
+    background: rgba(255, 255, 255, 0.12);
+    flex-shrink: 0;
+  }
+
+  // Timestamp
+  &__time {
+    text-transform: uppercase;
+    font-family: $font-porsche;
+    font-size: $font-size-xs;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.65);
+    white-space: nowrap;
+    user-select: none;
+    // Keep readable against bright frames
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    padding-left: 0.25rem;
+  }
+}
+
+// ── Person modal (mobile only) ─────────────────────────────────────────────
+.reunion-person-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  padding: 1rem;
+
+  @media (max-width: 1023px) {
+    display: flex;
+  }
+
+  &.is-open {
+    pointer-events: auto;
+  }
+
+  &__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    cursor: pointer;
+  }
+
+  &__container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 320px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: $color-card;
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+  }
+
+  &__content {
+    padding: 1.5rem 1.25rem 1.5rem;
+    margin-top: -75px;
+    position: relative;
+    z-index: 2;
+  }
+
+  &__close {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    padding: 0.25rem;
+    z-index: 9001;
+  }
+
+  &__photo {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    background-color: rgba(255, 255, 255, 0.06);
+    background-image: url('/images/reunions/bg-reunions.jpg');
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+
+    position: relative;
+
+    &::before {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      width: 100%;
+      height: 70%;
+      background: linear-gradient(to top, $color-card 0%, transparent);
+    }
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  &__photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  // Order: signature → name+country → chapter → player
+  &__signature-wrap {
+    margin-bottom: 0.75rem;
+
+    &[hidden] {
+      display: none;
+    }
+
+    &--dual {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-end;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+    }
+
+    &--dual .reunion-person-modal__signature {
+      width: auto;
+      flex: 1 1 42%;
+      max-width: calc(50% - 0.5rem);
+      min-width: 0;
+    }
+  }
+
+  &__signature {
+    width: 60%;
+    max-height: 100px;
+    // max-width: 60%;
+    // max-height: 60px;
+    height: auto;
+    object-fit: contain;
+    object-position: left center;
+    display: block;
+  }
+
+  &__name-line {
+    margin: 0 0 0.25rem;
+    font-family: $font-porsche;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: $color-brand;
+    letter-spacing: 0.02em;
+    line-height: 1.35;
+
+    text-transform: uppercase;
+    letter-spacing: $letter-spacing;
+  }
+
+  &__name {
+    display: inline;
+  }
+
+  &__country {
+    display: inline;
+    font-weight: 600;
+    font-size: $font-size-sm;
+    letter-spacing: $letter-spacing;
+    text-transform: uppercase;
+    color: $color-brand;
+
+    margin: 0 0 1rem;
+
+    &.is-empty::before {
+      content: none;
+    }
+  }
+
+  &__chapter {
+
+    display: inline;
+
+    font-family: $font-porsche;
+    font-weight: 600;
+    font-size: $font-size-sm;
+    letter-spacing: $letter-spacing;
+    text-transform: uppercase;
+    // color: $color-text-muted;
+
+    transform: rotate(-90deg);
+    position: absolute;
+    top: -115px;
+    left: 248px;
+    min-width: 110px;
+    color: rgba($color-light, 1);
+    opacity: 0.35;
+    margin: 0;
+    text-align: right;
+  }
+
+  &__quote {
+    margin: 0.35rem 0 1rem;
+    padding: 0;
+    font-size: 1.2rem;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 1.35;
+    color: rgba(255, 255, 255, 0.75);
+
+    &::before {
+      content: '\201C';
+    }
+
+    &::after {
+      content: '\201D';
+    }
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  &__audio {
+    margin-top: 0.75rem;
+    padding-block: 0.25rem 0.75rem;
+    border-top: none;
+
+    &[hidden] {
+      display: none;
+    }
+
+    .reunion__tooltip-player {
+      margin-bottom: 0.5rem;
+    }
+
+    .reunion__tooltip-progress-track {
+      margin-bottom: 0;
+    }
+  }
+}
+
+// ── Tooltip audio panel ───────────────────────────────────────────────────
+.reunion__tooltip-audio {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  // border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.reunion__tooltip-quote {
+  margin: 0.75rem 0;
+  padding: 0;
+  font-size: 1.1rem;
+  // font-style: italic;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+  max-width: 240px;
+
+  &[hidden] {
+    display: none;
+  }
+
+  &::before {
+    content: '\201C';
+  }
+
+  &::after {
+    content: '\201D';
+  }
+}
+
+.reunion__tooltip-player {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+// On pointer devices the custom cursor acts as the play button — hide the in-tooltip icon
+@media (hover: hover) {
+  .reunion__tooltip-playbtn {
+    display: none;
+  }
+}
+
+// Mini play/pause button
+.reunion__tooltip-playbtn {
+  appearance: none;
+  pointer-events: auto;
+  border: 2px solid $color-brand;
+  border-radius: 50%;
+  background: transparent;
+  color: $color-brand;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+
+  @media (min-width: ($bp-xl)) {
+    display: none;
+  }
+
+  &:hover {
+    background: $color-brand;
+    color: $color-dark;
+    transform: scale(1.08);
+  }
+
+  svg {
+    width: 10px;
+    height: 10px;
+    display: block;
+  }
+
+  .reunion__tooltip-icon--pause {
+    display: none;
+  }
+
+  .reunion__tooltip-icon--play {
+    display: block;
+  }
+
+  &.is-playing {
+    .reunion__tooltip-icon--play {
+      display: none;
+    }
+
+    .reunion__tooltip-icon--pause {
+      display: block;
+    }
+  }
+}
+
+// Waveform SVG
+.reunion__tooltip-waveform {
+  flex: 1;
+  height: 28px;
+  display: block;
+  overflow: visible;
+}
+
+.reunion__tooltip-wave {
+  fill: none;
+  stroke-linecap: round;
+  transition:
+    opacity 0.35s ease,
+    filter 0.35s ease;
+
+  // Idle: show a visible generic spectrum (not a decorative line)
+  &--main {
+    stroke: $color-brand;
+    stroke-width: 1.4;
+    opacity: 0.5;
+  }
+
+  &--core {
+    stroke: $color-brand;
+    stroke-width: 0.55;
+    opacity: 0;
+  }
+}
+
+.reunion__tooltip-waveform.is-playing {
+  .reunion__tooltip-wave--main {
+    opacity: 1;
+    filter: drop-shadow(0 0 3px rgba(250, 151, 2, 0.38));
+  }
+
+  .reunion__tooltip-wave--core {
+    opacity: 0.6;
+  }
+}
+
+.reunion__tooltip-time {
+  font-family: $font-porsche;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+  user-select: none;
+}
+
+// Audio progress bar
+.reunion__tooltip-progress-track {
+  position: relative;
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: height 0.15s ease;
+
+  // &:hover {
+  //   height: 3px;
+  // }
+}
+
+.reunion__tooltip-progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: $color-brand;
+  border-radius: 2px;
+  transform: scaleX(0);
+  transform-origin: left;
+  pointer-events: none;
+  box-shadow: 0 0 4px rgba($color-brand, 0.4);
+}
+
+// Complete state: brand color glow on progress
+.reunion__tooltip.is-audio-complete {
+  .reunion__tooltip-progress-fill {
+    box-shadow: 0 0 6px rgba($color-brand, 0.7);
+  }
+}
+
+// ── Keyframes ──────────────────────────────────────────────────────────────
+@keyframes reunion-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes reunion-dash {
+  0% {
+    stroke-dasharray: 1, 200;
+    stroke-dashoffset: 0;
+  }
+
+  50% {
+    stroke-dasharray: 100, 200;
+    stroke-dashoffset: -30px;
+  }
+
+  100% {
+    stroke-dasharray: 100, 200;
+    stroke-dashoffset: -124px;
+  }
+}
+
+.ctas {
+  .reunion__cta {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    margin: 0 auto;
+    padding-inline: 1rem;
+
+    font-size: $font-size-sm;
+    text-align: left;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      width: 100%;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+    }
+
+    &-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2em;
+      height: 2em;
+      border: 2px solid currentColor;
+      border-radius: 50%;
+      margin-right: 0.75em;
+      flex-shrink: 0;
+    }
+  }
+
+}
+
+// SVG overlay con áreas hover por persona
+// Pointer events gated by .reunions__hitboxes via is-pinned + is-snapshot-ready
+.reunion__people {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  z-index: 3;
+  pointer-events: auto;
+
+  height: auto;
+  aspect-ratio: 1.6;
+  top: 65%;
+  transform: scale(1.44) translate(-11%, -50%);
+
+  @media (min-width: $bp-lg) {
+    height: 100%;
+    aspect-ratio: unset;
+    top: unset;
+    transform: none;
+  }
+
+  .reunion__person {
+    rect {
+      fill: transparent;
+      // fill: rgba(255, 255, 255, 0.1);
+      cursor: default;
+      transition: fill 0.25s ease;
+    }
+
+    &:hover rect {
+      fill: rgba(255, 255, 255, 0);
+    }
+  }
+}
+
+// Tooltip flotante de persona (dentro de .reunions__hitboxes, posición % del contenedor)
+.reunion__tooltip {
+  position: absolute;
+  z-index: 9999;
+  pointer-events: none;
+
+  padding: 0.6rem 0.9rem;
+  border-radius: $radius * 2;
+
+  @media (min-width: ($bp-lg)) {
+    clip-path: inset(0 100% 0 0 round #{$radius * 2});
+    transition: clip-path 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &.is-visible {
+      clip-path: inset(0 0% 0 0 round #{$radius * 2});
+    }
+  }
+}
+
+.reunion__tooltip-signature-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+  margin-bottom: 0.5rem;
+  line-height: 0;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.reunion__tooltip-signature {
+  display: block;
+  width: auto;
+  height: 100%;
+  max-height: 32px;
+  flex-shrink: 0;
+}
+
+.reunion__tooltip-name {
+  margin: 0;
+  font-size: $font-size-sm;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: $letter-spacing;
+  text-transform: uppercase;
+  color: $color-brand;
+  overflow: hidden;
+}
+
+.reunion__tooltip-legend {
+  margin: 0.2rem 0 0;
+  font-size: $font-size-xs;
+  font-weight: 600;
+  letter-spacing: $letter-spacing;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+  overflow: hidden;
+}
+
+
+// Locked dissolve in progress — match non-interactive feel of a slider
+.reunions.is-reunions-transitioning .reunion__indicator-dot {
+  pointer-events: none;
+  cursor: default;
+  opacity: 0.35;
+}
+
+// Indicador lateral de reunión activa
+.reunion__indicator {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  z-index: 20;
+  pointer-events: auto;
+
+  @media (max-width: ($bp-sm - 1px)) {
+    left: 1rem;
+    top: 55%;
+  }
+
+  @media (min-width: $bp-md) {
+    left: 2rem;
+  }
+
+  @media (min-width: $bp-lg) {
+    left: unset;
+    right: 0rem;
+  }
+}
+
+.reunion__indicator-dot {
+  // Reset button
+  appearance: none;
+  border: none;
+  background-color: transparent;
+  padding: 0;
+  cursor: pointer;
+
+  display: block;
+  width: 32px;
+  height: 32px;
+  transition: all 0.3s ease;
+  opacity: 0.5;
+
+  position: relative;
+  transform: translateX(-15px);
+
+  // @media (max-width: ($bp-sm - 1px)) {
+  //   height: 16px;
+  // }
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 100%;
+    background-color: $color-text-muted;
+
+    // @media (max-width: ($bp-sm - 1px)) {
+    //   width: 6px;
+    //   height: 6px;
+    //   border-radius: 99px;
+    // }
+  }
+
+  &:hover {
+    opacity: 1;
+
+    &::before,
+    &::after {
+      background-color: $color-brand;
+    }
+  }
+
+  &.is-active {
+    opacity: 1;
+    cursor: default;
+
+    &::before,
+    &::after {
+      background-color: $color-light;
+    }
+
+  }
+}
+
+// CTA oculto por defecto, GSAP lo muestra/oculta
+.reunion__cta {
+  opacity: 0;
+  pointer-events: none;
+
+  &.is-visible {
+    pointer-events: auto;
+    opacity: .5;
+  }
+}
+
+// Texto sobre la foto
+.reunion__data {
+  position: relative;
+  width: 100%;
+
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+
+  letter-spacing: $letter-spacing;
+  text-align: center;
+
+  @media (min-width: $bp-2xl) {
+    flex-grow: unset;
+  }
+
+  .subtitle,
+  h4,
+  p {
+    margin: 0;
+  }
+
+  .reunion__description {
+    padding-block: 3rem 3.3rem;
+    text-transform: uppercase;
+    font-weight: 600;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      padding-block: .75rem;
+    }
+  }
+
+  .reunion__title {
+    font-size: 1.25rem;
+    line-height: 1.125;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      font-size: 1rem;
+    }
+  }
+
+  .reunion__vin {
+    width: fit-content;
+    margin: 0.75rem auto 0 auto;
+    padding: .27rem .75rem .25rem .75rem;
+
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: $color-brand;
+    line-height: 1;
+
+    border: 1px solid $color-brand;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      margin: 0.5rem auto 0 auto;
+      font-size: 1rem;
+    }
+  }
+
+  .reunion__location {
+    margin: 0;
+    font-weight: 400;
+    text-transform: uppercase;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      margin: .175rem 0 0 0;
+    }
+  }
+
+  .reunion__location-country {
+    color: $color-brand;
+  }
+
+  .reunion__location-separator {
+    color: $color-brand;
+    color: $color-text-muted;
+    color: $color-light;
+    opacity: .5;
+  }
+
+  .reunion__location-date {
+    color: $color-text-muted;
+    color: $color-light;
+  }
+}
+
+// Chapters — solo los links capturan eventos cuando is-pinned; el resto deja pasar al SVG
+.reunion__chapters {
+  position: absolute;
+  bottom: 3rem;
+
+  width: 100%;
+  height: fit-content;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 60%;
+  margin: 0 auto;
+
+  pointer-events: none;
+
+  @media (max-width: ($bp-sm - 1px)) {
+    bottom: 2rem;
+  }
+
+  @media (min-width: $bp-md) {
+    width: 100%;
+    margin: 0;
+    min-width: unset;
+  }
+
+  @media (min-width: $bp-2xl) {
+    position: relative;
+    bottom: unset;
+  }
+
+  .reunions.is-pinned & li a {
+    pointer-events: auto;
+  }
+
+  ul {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+
+    list-style: none;
+
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    gap: 1.2rem;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      flex-direction: row;
+      gap: 1.2rem;
+    }
+
+    @media (min-width: $bp-2xl) {
+      gap: 1.5rem;
+    }
+
+    // @media (min-width: $bp-md) {
+    //   flex-direction: column;
+    // }
+
+    // @media (min-width: $bp-lg) {
+    //   flex-direction: row;
+    //   width: fit-content;
+    // }
+
+    li a {
+      position: relative;
+      display: inline-block;
+      padding-bottom: $space-xs;
+      font-size: $font-size-xs;
+      font-weight: 600;
+
+      letter-spacing: $letter-spacing;
+      text-decoration: none;
+      text-transform: uppercase;
+      text-shadow: 0 0 8px #00000085;
+      transition: color 0.25s ease;
+
+      @media (max-width: ($bp-sm - 1px)) {
+        font-size: .9rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+      }
+
+      &::before {
+        content: "";
+        position: absolute;
+        bottom: 2px;
+        left: 0;
+        width: 100%;
+        height: 1px;
+        // border-radius: 99px;
+        background: $color-brand;
+        text-shadow: 0 0 8px #00000085;
+        opacity: .5;
+
+        @media (max-width: ($bp-sm - 1px)) {
+          opacity: .75;
+        }
+
+        @media (min-width: $bp-2xl) {
+          bottom: 12px;
+          left: -8px;
+          width: 3px;
+          height: 3px;
+          border-radius: 99px;
+          background: $color-light;
+        }
+      }
+
+      &::after {
+        opacity: 0;
+
+        @media (max-width: ($bp-sm - 1px)) {
+          opacity: 0;
+        }
+      }
+
+      &:hover {
+        color: $color-light;
+        text-decoration: none;
+
+        &::before {
+          display: none;
+
+          @media (min-width: $bp-2xl) {
+            display: block;
+          }
+        }
+      }
+
+      // Mobile list: short (e.g. "Cap. I"); desktop list: largo/full (e.g. "Capítulo I")
+      .reunion__chapter-label--full {
+        display: none;
+      }
+
+      .reunion__chapter-label--short {
+        display: inline;
+      }
+
+      @media (min-width: $bp-lg) {
+        .reunion__chapter-label--full {
+          display: inline;
+        }
+
+        .reunion__chapter-label--short {
+          display: none;
+        }
+      }
+    }
+
+    li.is-active a::before {
+      opacity: 1;
+    }
+  }
+}

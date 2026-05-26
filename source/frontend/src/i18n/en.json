@@ -1,0 +1,108 @@
+{
+  "nav": {
+    "home": "Home",
+    "submit": "Create your own Owners Reunion",
+    "menu": "Menu",
+    "reunions": "Reunions",
+    "gallery": "Gallery",
+    "stories": "Join in",
+    "closeMenu": "Close",
+    "email": "Contact us"
+  },
+  "footer": {
+    "tagline": "There Is No Substitute"
+  },
+  "home": {
+    "pageTitle": "Porsche Owners Reunions | Stories that connect generations",
+    "metaDescription": "Discover Owners Reunions, the Porsche project connecting different owners of the same vehicle to rebuild each car's story across time.",
+    "ogTitle": "Porsche Owners Reunions",
+    "ogDescription": "A Porsche can have many owners, but only one story. Discover how they connect across time.",
+    "heroTitle": "Porsche Owners Reunions",
+    "interludeSubtitle": "ONE PORSCHE. MANY LIVES.<br /> OWNERS OF THE SAME CAR REUNITED FOR THE FIRST TIME.<br /> EACH OF THEM A CHAPTER OF A NEVER ENDING STORY.",
+    "reunionsTitle": "Owners reunion",
+    "reunionsSubtitle": "The never ending story",
+    "reunionsCtaWatch": "Discover this story",
+    "reunionsIndicatorNav": "Navigate between reunions",
+    "reunionsIndicatorDot": "Reunion {n}",
+    "reunionsModalLabel": "Owners reunion video",
+    "reunionsModalClose": "Close",
+    "reunionsVideoHeading": "Reunion",
+    "reunionsPhotoAlt": "Reunion",
+    "reunionsChapter": "Chapter",
+    "reunionsChapterShort": "Chap.",
+    "reunionsPlayAudio": "Play audio",
+    "reunionsClickToPlay": "Click to play",
+    "reunionsPersonModalDetail": "Details",
+    "galleryPrev": "Previous",
+    "galleryNext": "Next",
+    "storiesSubtitle": "Create your own Owners Reunion:",
+    "storiesGalleryLabel": "\"Reunions\" in progress…",
+    "storiesTagline": "The story of your Porsche could be the next one.",
+    "ctaSubmit": "Join in"
+  },
+  "quotes": {
+    "1": {
+      "text": "There is no substitute",
+      "author": "",
+      "image": "/images/quotes/porsche-classic-911-cubierto-hombre.jpg"
+    },
+    "2": {
+      "text": "It felt like stepping into a time capsule. Suddenly, I got in, closed the door, and I was 29 again.",
+      "author": "Joseline Wong",
+      "image": "/images/quotes/porsche-carrera-classic-mujer-tocando-maletero.jpg",
+      "country": "Peru"
+    },
+    "3": {
+      "text": "You can smell the hot oil and gasoline. No other car sounds the same.",
+      "author": "Rodrigo Baz",
+      "image": "/images/quotes/porsche-classic-piloto-pista.jpg",
+      "country": "Mexico"
+    },
+    "4": {
+      "text": "Every car carries a story. Being part of this one is something I'll always be proud of.",
+      "author": "Abdon Hernandez",
+      "image": "/images/quotes/porsche-classic-911-niebla-estacionamiento.jpg",
+      "country": "Mexico"
+    },
+    "5": {
+      "text": "This car has been the thread weaving together three generations of motorsport passion—my grandfather's, my father's, and now mine.",
+      "author": "Pablo Esguerra",
+      "image": "/images/quotes/porsche-356-perro-convertible-en-movimiento.jpg",
+      "country": "Colombia"
+    },
+    "6": {
+      "text": "I believe the car never truly stops being yours.",
+      "author": "Luis \"Lucho\" Fischer",
+      "image": "/images/quotes/porsche-911-clasico-gris-garaje-urbano.jpg",
+      "country": "Peru"
+    }
+  },
+  "faq": {
+    "items": [
+      {
+        "question": "What is \"There is no substitute\"?",
+        "answer": "It is Porsche's global platform that celebrates the connection between its cars and the people who drive them."
+      },
+      {
+        "question": "What is Owners Reunions?",
+        "answer": "It is a project that brings together different owners of the same Porsche to reconstruct the vehicle's complete history over time."
+      },
+      {
+        "question": "Why does Porsche connect owners of the same car?",
+        "answer": "Because every Porsche accumulates unique experiences. By reuniting those who drove it, its history can be understood from different perspectives."
+      },
+      {
+        "question": "Can any Porsche owner participate?",
+        "answer": "Yes. You can share your story and become part of the project."
+      },
+      {
+        "question": "What happens if multiple people share the same vehicle?",
+        "answer": "That information allows us to reconstruct the car's full journey and connect the different moments in its history."
+      },
+      {
+        "question": "How are the stories selected?",
+        "answer": "We consider the value of the story, the connection between owners, and the significance of the vehicle within the community."
+      }
+    ]
+  }
+}

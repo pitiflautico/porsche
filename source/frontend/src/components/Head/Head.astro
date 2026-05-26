@@ -1,0 +1,202 @@
+---
+interface Props {
+  title: string;
+  description?: string;
+  image?: string;
+  canonical?: string;
+  /** Override OG title separately from the page <title> */
+  ogTitle?: string;
+  /** Override OG/Twitter description separately from meta description */
+  ogDescription?: string;
+}
+const {
+  title,
+  description,
+  image = "/share-image.jpg",
+  canonical,
+  ogTitle,
+  ogDescription,
+} = Astro.props;
+const ogImage = canonical ? new URL(image, canonical).href : image;
+const resolvedOgTitle = ogTitle ?? title;
+const resolvedOgDescription = ogDescription ?? description;
+---
+
+<slot name="head" />
+<meta charset="utf-8" />
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1, viewport-fit=cover"
+/>
+<meta
+  name="facebook-domain-verification"
+  content="hu1m2x7o6jum2lkijfu37pd9karpnx"
+/>
+<meta name="generator" content={Astro.generator} />
+<meta name="author" content="Porsche Latin America" />
+<title>{title}</title>
+{description && <meta name="description" content={description} />}
+{canonical && <link rel="canonical" href={canonical} />}
+
+<!-- Favicons (same folder as share-image) -->
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+<link rel="icon" href="/favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content={resolvedOgTitle} />
+{resolvedOgDescription && <meta property="og:description" content={resolvedOgDescription} />}
+<meta property="og:image" content={ogImage} />
+{canonical && <meta property="og:url" content={canonical} />}
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={resolvedOgTitle} />
+{resolvedOgDescription && <meta name="twitter:description" content={resolvedOgDescription} />}
+<meta name="twitter:image" content={ogImage} />
+
+<!-- SEO / LLM-friendly -->
+<meta name="robots" content="index, follow" />
+{description && <meta name="abstract" content={description} />}
+
+{/* <!-- Preload critical resources --> */}
+<link
+  rel="preload"
+  href="/fonts/porschenext-regular-webfont.woff2"
+  as="font"
+  type="font/woff2"
+  crossorigin
+/>
+<link
+  rel="preload"
+  href="/fonts/porschenext-bold-webfont.woff2"
+  as="font"
+  type="font/woff2"
+  crossorigin
+/>
+
+<!-- Google tag (gtag.js) -->
+<script
+  is:inline
+  async
+  src="https://www.googletagmanager.com/gtag/js?id=G-VDKT3GY3Z3"></script>
+
+<script is:inline>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() {
+    dataLayer.push(arguments);
+  }
+  gtag("js", new Date());
+  gtag("config", "G-VDKT3GY3Z3"); // Porsche events
+</script>
+
+<!-- Meta Pixel: Init + PageView -->
+<script is:inline>
+  !(function (f, b, e, v, n, t, s) {
+    if (f.fbq) return;
+    n = f.fbq = function () {
+      n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+    };
+    if (!f._fbq) f._fbq = n;
+    n.push = n;
+    n.loaded = !0;
+    n.version = "2.0";
+    n.queue = [];
+    t = b.createElement(e);
+    t.async = !0;
+    t.src = v;
+    s = b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t, s);
+  })(
+    window,
+    document,
+    "script",
+    "https://connect.facebook.net/en_US/fbevents.js",
+  );
+  fbq("init", "430862088142952");
+  fbq("track", "PageView");
+</script>
+<noscript>
+  <img
+    height="1"
+    width="1"
+    style="display:none"
+    src="https://www.facebook.com/tr?id=430862088142952&ev=PageView&noscript=1"
+  />
+</noscript>
+
+<!-- Google Floodlight Tags: PageView + Clicks + VideoPlays -->
+<!-- Pixel/Source ID: 12161656 -->
+<script is:inline>
+  window.floodlight = {
+    _fire: function (url) {
+      var iframe = document.createElement("iframe");
+      iframe.src = url;
+      iframe.width = "1";
+      iframe.height = "1";
+      iframe.style.display = "none";
+      iframe.setAttribute("frameborder", "0");
+      document.body.appendChild(iframe);
+    },
+
+    // Tag 2 — Clicks AllElements
+    trackClick: function (clickElement) {
+      var u2 = encodeURIComponent(clickElement);
+      var ord = Math.random() * 10000000000000;
+      this._fire(
+        "https://12161656.fls.doubleclick.net/activityi;src=12161656;type=button;cat=lat_p007" +
+          ";u2=" +
+          u2 +
+          ";dc_lat=;dc_rdid=;tag_for_child_directed_treatment=;tfua=;npa=;gdpr=;gdpr_consent=" +
+          ";ord=" +
+          ord +
+          "?",
+      );
+    },
+
+    // Tag 3 — VideoPlays (u6: "start", "25%", "50%", "75%", "complete")
+    trackVideo: function (clickElement, videoMilestone) {
+      var u2 = encodeURIComponent(clickElement);
+      var u6 = encodeURIComponent(videoMilestone);
+      var ord = Math.random() * 10000000000000;
+      this._fire(
+        "https://12161656.fls.doubleclick.net/activityi;src=12161656;type=button;cat=lat_p008" +
+          ";u2=" +
+          u2 +
+          ";u6=" +
+          u6 +
+          ";dc_lat=;dc_rdid=;tag_for_child_directed_treatment=;tfua=;npa=;gdpr=;gdpr_consent=" +
+          ";ord=" +
+          ord +
+          "?",
+      );
+    },
+  };
+
+  // Tag 1 — PageView (fires when body is ready)
+  document.addEventListener("DOMContentLoaded", function () {
+    // ⚠️ u1 is derived from the page's <html lang> attribute ("es" → "ES", "en" → "EN").
+    // Porsche Central may require a different value (e.g. country code or market ID).
+    // Update this logic once the expected value is confirmed with them.
+    var u1 = encodeURIComponent(
+      (document.documentElement.lang || "").toUpperCase(),
+    );
+    var u3 = encodeURIComponent(window.location.href);
+    var ord = Math.random() * 10000000000000;
+    window.floodlight._fire(
+      "https://12161656.fls.doubleclick.net/activityi;src=12161656;type=latam;cat=lat_p00-" +
+        ";u1=" +
+        u1 +
+        ";u3=" +
+        u3 +
+        ";dc_lat=;dc_rdid=;tag_for_child_directed_treatment=;tfua=;npa=;gdpr=;gdpr_consent=" +
+        ";ord=" +
+        ord +
+        "?",
+    );
+  });
+</script>

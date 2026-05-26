@@ -1,0 +1,47 @@
+@use 'variables' as *;
+
+// CTAs and form buttons site-wide
+.btn {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-block;
+  padding: auto 1.5rem auto 1.5rem;
+  min-height: 64px;
+
+  background: transparent;
+  border: 1px solid $color-brand;
+  border-radius: calc($radius * 2);
+
+  font-size: $font-size-sm;
+  font-weight: 600;
+  color: $color-text;
+  letter-spacing: $letter-spacing;
+
+  text-align: center;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: .35s;
+
+
+  @media (max-width: ($bp-sm - 1px)) {
+    font-size: 1rem;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+  }
+
+  &:hover {
+    text-decoration: none;
+  }
+
+  &--primary {
+    border-color: $color-link;
+    background: $color-link;
+    color: #000;
+
+    &:hover {
+      background: $color-link-hover;
+      border-color: $color-link-hover;
+      color: #fff;
+    }
+  }
+}

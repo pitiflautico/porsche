@@ -1,0 +1,52 @@
+---
+import "./footer.scss";
+
+interface Props {
+  tagline: string;
+}
+const { tagline } = Astro.props;
+---
+
+<footer role="contentinfo" aria-label="Footer">
+  <section class="footer">
+    <div class="container footer__inner">
+      <div class="footer__tagline">
+        <h2 class="footer__tagline-text subtitle">{tagline}</h2>
+      </div>
+    </div>
+    <p class="footer__legal">
+      © {new Date().getFullYear()} Porsche Latin America, Inc.
+    </p>
+  </section>
+</footer>
+
+<script>
+  import gsap from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+  import { animateTextRandomBlur } from "../../scripts/gsap-text-random-blur";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  function initFooterTaglineAnimation() {
+    const block = document.querySelector<HTMLElement>(".footer__tagline");
+    const text = document.querySelector<HTMLElement>(".footer__tagline-text");
+    if (!block || !text) return;
+
+    gsap.set(text, { opacity: 0 });
+
+    ScrollTrigger.create({
+      trigger: block,
+      start: "top 88%",
+      onEnter: () => {
+        animateTextRandomBlur(text, { yOffset: 30, blur: 6 });
+        gsap.set(text, { opacity: 1 });
+      },
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initFooterTaglineAnimation);
+  } else {
+    initFooterTaglineAnimation();
+  }
+</script>

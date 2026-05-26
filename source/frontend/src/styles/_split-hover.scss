@@ -1,0 +1,48 @@
+@use 'variables' as *;
+
+[data-split-hover] {
+  line-height: 1;
+}
+
+.split-char {
+  display: inline-block;
+  position: relative;
+
+  vertical-align: top;
+
+  @media (min-width: ($bp-lg)) {
+    clip-path: inset(-0.1em 0 0.1em 0);
+  }
+
+  &__top {
+    display: block;
+    line-height: 1;
+    transition: transform 0.5s cubic-bezier(0.76, 0, 0.24, 1);
+    transition-delay: calc(var(--i) * 0.03s);
+    will-change: transform;
+  }
+
+  &__bottom {
+    display: none;
+
+    position: absolute;
+    top: 100%;
+    left: 0;
+
+    transition: transform 0.5s cubic-bezier(0.76, 0, 0.24, 1);
+    transition-delay: calc(var(--i) * 0.03s);
+    will-change: transform;
+
+    line-height: 1;
+    color: var(--split-hover-color, #{$color-light});
+
+    @media (min-width: ($bp-lg)) {
+      display: block;
+    }
+  }
+}
+
+[data-split-hover]:hover .split-char__top,
+[data-split-hover]:hover .split-char__bottom {
+  transform: translateY(-100%);
+}

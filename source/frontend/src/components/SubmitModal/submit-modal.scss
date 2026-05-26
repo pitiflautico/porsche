@@ -1,0 +1,234 @@
+@use '../../styles/variables' as *;
+
+.submit-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  width: 100vw;
+  height: 100dvh;
+  height: 100vh;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  pointer-events: none;
+  opacity: 0;
+
+  &.is-open {
+    pointer-events: auto;
+  }
+
+  &__backdrop {
+    position: absolute;
+    inset: 0;
+    background: $color-bg;
+  }
+
+  &__container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      padding-bottom: 15vh;
+    }
+  }
+
+  // Optional header strip (mobile): title + close in one bar
+  &__header {
+    display: none;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    height: 48px;
+    padding: 0 $space-md;
+    background: $color-bg;
+
+    @media (max-width: $bp-sm) {
+      display: flex;
+    }
+  }
+
+  &__header-title {
+    font-size: $font-size-sm;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: $letter-spacing;
+    color: $color-brand;
+  }
+
+  // Close: fixed viewport top-right, min 44px tap target, above iframe
+  &__close {
+    min-width: 44px;
+    min-height: 44px;
+    padding: $space-sm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &--desktop {
+      position: fixed;
+      top: $space-md;
+      right: calc($space-md + 1rem); // extra offset so it doesn’t sit on the scrollbar
+      z-index: 2;
+
+      .submit-modal--with-header & {
+        @media (max-width: $bp-sm) {
+          display: none;
+        }
+      }
+    }
+
+    &--mobile {
+      display: none;
+
+      .submit-modal--with-header & {
+        @media (max-width: $bp-sm) {
+          display: flex;
+          position: static;
+        }
+      }
+    }
+  }
+
+  &__iframe-wrap {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background: $color-bg;
+
+    #stry-wrapper {
+      width: 100%;
+      min-height: 100%;
+    }
+  }
+}
+
+.submit-modal__iframe-wrap {
+
+  @media (min-width: $bp-md) {
+    padding: 10vh 0;
+  }
+
+  #stry-wrapper {
+    background: none !important;
+  }
+}
+
+// FORM: Storystream custom styles
+
+.submit-modal__iframe-wrap #stry-wrapper {
+  max-width: 560px;
+  width: 95%;
+}
+
+
+/* FORM: Storystream custom styles */
+
+
+// Checkbox container
+body .stry-content-brief .stry-checkbox-wrapper .stry-checkbox-container {
+  background: transparent;
+  border: 1px solid $color-brand;
+  overflow: hidden;
+}
+
+// Checkbox
+body .stry-content-brief .stry-checkbox-wrapper .stry-checkbox-container {
+  height: 25px;
+  width: 25px;
+}
+
+// Checkbox checked
+body .stry-content-brief .stry-checkbox-wrapper .stry-checkbox:checked~.stry-checkmark {
+  background-color: $color-brand;
+}
+
+// Selects focus and not empty
+body .stry-select:focus:not([value=""]),
+body .stry-select:not([value=""]) {
+  color: #fff !important;
+}
+
+body .stry-module .stry-submit-button {
+  width: 100%;
+
+  background-color: transparent !important;
+  color: $color-brand !important;
+
+  border: 2px solid $color-brand !important;
+  border-radius: 8px !important;
+
+  font-weight: 700;
+  font-size: 1.4rem;
+  line-height: 1.5;
+  letter-spacing: 0.15rem;
+  text-transform: uppercase;
+
+  &:hover {
+    background-color: $color-brand !important;
+  }
+}
+
+
+// Storystream file uploader
+body :where([uc-file-uploader-minimal]>uc-start-from uc-drop-area):not(#\#):not(#\#):not(#\#) {
+  border: 2px dashed $color-brand;
+  border-radius: 8px;
+  background: transparent;
+  color: $color-light;
+  transition: all 0.3s ease;
+}
+
+// Storystream file uploader hover
+:where([uc-file-uploader-minimal]>uc-start-from uc-drop-area):not(#\#):not(#\#):not(#\#):hover {
+  border-color: $color-light;
+  background: rgba($color-light, 0.1);
+}
+
+body .stry-module .stry-uploader-button {
+  border-color: $color-brand !important;
+  background-color: $color-brand !important;
+
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: $font-size-sm !important;
+  line-height: 1 !important;
+  letter-spacing: $letter-spacing !important;
+  color: #000 !important;
+
+  min-height: 64px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  @media (max-width: ($bp-sm - 1px)) {
+    font-size: 1rem !important;
+    letter-spacing: 0.1em !important;
+  }
+}
+
+.stry-module .stry-submit-button.stry-rounded-corners:hover,
+.stry-module .stry-uploader-button.stry-rounded-corners:hover {
+  color: #fff !important;
+}
+
+body .stry-content-brief input,
+body .stry-content-brief textarea,
+body .stry-content-brief select {
+  border-color: $color-brand !important;
+}
+
+body .stry-content-brief input::placeholder,
+body .stry-content-brief textarea::placeholder,
+body .stry-content-brief select::placeholder {
+  color: $color-text-muted !important;
+}
+
+body .stry-module .stry-submit-button.stry-rounded-corners:hover {
+  background-color: $color-brand !important;
+}

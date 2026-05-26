@@ -1,0 +1,87 @@
+@use 'variables' as *;
+
+
+body {
+  background: $color-dark;
+}
+
+html,
+body {
+  overflow-x: clip;
+}
+
+header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+// Shared layout: main width, nav, footer
+.container {
+  width: min(90%, $container-max);
+  margin-inline: auto;
+  padding-inline: $space-md;
+
+  @media (max-width: ($bp-sm - 1px)) {
+    padding-inline: $space-sm;
+    width: min(94%, $container-max);
+  }
+}
+
+
+.wrapper {
+  width: 90%;
+
+  @media (min-width: $bp-lg) {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    gap: $space-md;
+    gap: 0;
+    flex-direction: row;
+
+    &__aside {
+      flex-basis: 35%;
+    }
+
+    &__main {
+      flex-basis: 65%;
+    }
+  }
+
+}
+
+.fullpage {
+  height: 100vh;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ctas {
+  width: 100%;
+  margin: 0 auto;
+}
+
+.ctas a,
+.ctas button {
+  width: 80%;
+  max-width: fit-content;
+  margin: 0 auto;
+  padding-inline: 1.25rem;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  line-height: 1;
+
+  @media (max-width: ($bp-sm - 1px)) {
+    width: 100%;
+  }
+}

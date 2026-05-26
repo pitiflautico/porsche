@@ -1,0 +1,1493 @@
+---
+// PLAIN slider with the Tympanus / Arlind Aliu "Shader Image Transition"
+// shader applied directly (https://github.com/Arrlindii/Shader-Image-Transition).
+// No Reunions WebGL stack, no GSAP, no Lenis. Just a local WebGL canvas
+// that mixes textureA → textureB through the petal-blob SDF mask.
+
+import BaseLayout from "../layouts/BaseLayout.astro";
+import "../components/sections/Reunions/reunions.scss";
+import { reunions } from "../data/reunions-data";
+import Gallery from "../components/sections/Gallery/Gallery.astro";
+import { t, type Locale } from "../i18n/utils";
+
+const L: Locale = "es";
+// Fetch Gallery slides server-side so we can pass the first image URL to
+// the WebGL canvas as the "next" texture for the 5 → 6 handoff.
+import { sanity } from "../lib/sanity";
+import { GALLERY_PHOTOS_QUERY, type GalleryPhoto } from "../lib/sanity-queries";
+let firstGalleryImage = "";
+if (sanity) {
+  try {
+    const photos: GalleryPhoto[] = await sanity.fetch(GALLERY_PHOTOS_QUERY);
+    firstGalleryImage = photos.find((p) => p.imageUrl)?.imageUrl ?? "";
+  } catch {
+    firstGalleryImage = "";
+  }
+}
+const chapterLabel = "Capítulo";
+const chapterShort = "Cap.";
+
+const toRoman = (n: number) => {
+  const map: [number, string][] = [
+    [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"],
+  ];
+  let s = "";
+  for (const [v, sym] of map) {
+    while (n >= v) { s += sym; n -= v; }
+  }
+  return s;
+};
+
+// Pre-rendered idle bars path so the audiogram is visible from the first
+// frame (no dependency on client-side init).
+const BARS_N = 50;
+const BARS_IDLE = (() => {
+  const mid = 16, maxH = 24;
+  let d = "";
+  for (let i = 0; i < BARS_N; i++) {
+    const x = ((i + 0.5) / BARS_N) * 120;
+    const env = Math.sin(Math.PI * (i / (BARS_N - 1)));
+    const shape =
+      Math.abs(Math.sin(i * 0.45)) * 0.55 +
+      Math.abs(Math.sin(i * 0.95 + 1.2)) * 0.3 +
+      Math.abs(Math.sin(i * 1.55 + 0.4)) * 0.15;
+    const h = Math.max(0.6, env * shape * (maxH * 0.28));
+    d += `M ${x.toFixed(1)},${(mid - h).toFixed(1)} L ${x.toFixed(1)},${(mid + h).toFixed(1)} `;
+  }
+  return d.trim();
+})();
+---
+
+<BaseLayout
+  title="Section 5 — Shader transition (Tympanus)"
+  description="Plain Reunions design + petal-blob SDF shader transition."
+  ogTitle="Section 5 dev"
+  ogDescription="Section 5 dev"
+  locale={L}
+  current="home"
+  pointer={true}
+  noIntro={true}
+>
+  <section
+    id="reunions"
+    class="section reunions"
+    data-section="reunions"
+    style={`--reunion-count: ${reunions.length}`}
+    data-states={JSON.stringify(
+      reunions.flatMap((r, si) =>
+        Array.from({ length: r.chapters }, (_, ci) => ({ slide: si, chapter: ci, person: r.people[ci]?.name ?? "" })),
+      ),
+    )}
+  >
+    <div class="reunions__stage">
+      {/* WebGL canvas — renders the transition between any pair of slides. */}
+      <canvas id="s5-canvas" class="s5-canvas" aria-hidden="true"></canvas>
+
+      {/* Hidden image elements for texture loading. The canvas reads from these. */}
+      <div class="s5-img-pool" aria-hidden="true">
+        {reunions.map((r, i) => (
+          <img
+            data-slide={i}
+            src={r.bgDesktop}
+            alt=""
+            crossorigin="anonymous"
+            loading="eager"
+          />
+        ))}
+        {firstGalleryImage && (
+          <img
+            data-slide="gallery"
+            data-gallery-first
+            src={firstGalleryImage}
+            alt=""
+            crossorigin="anonymous"
+            loading="eager"
+          />
+        )}
+      </div>
+
+      <nav class="reunion__indicator" aria-label="Reuniones">
+        {reunions.map((_, i) => (
+          <button
+            class:list={["reunion__indicator-dot", { "is-active": i === 0 }]}
+            data-slide-index={String(i)}
+            aria-label={`Ir a reunión ${i + 1}`}
+            type="button"
+          />
+        ))}
+      </nav>
+
+      <div class="s5-panels">
+        {reunions.map((r, i) => (
+          <div class:list={["reunion", "s5-panel", { "is-active": i === 0 }]} data-slide={i}>
+            <div class="wrapper">
+              <div class="wrapper__aside">
+                <div class="reunion__data">
+                  <h2 class="subtitle">Reuniones Porsche</h2>
+                  <h3 class="reunion__location lead">
+                    <span class="reunion__location-country">{r.country}</span>
+                  </h3>
+                  <div class="reunion__description">
+                    <h4 class="reunion__title lead">{r.model}</h4>
+                    <p class="reunion__vin lead">
+                      <span class="reunion__vin-number">{r.vin}</span>
+                    </p>
+                  </div>
+
+                  <div class="reunion__chapters">
+                    <ul>
+                      {Array.from({ length: r.chapters }, (_, ci) => (
+                        <li data-chapter={ci + 1}>
+                          <a tabindex="0">
+                            <span class="reunion__chapter-label reunion__chapter-label--full">{chapterLabel}</span>
+                            <span class="reunion__chapter-label reunion__chapter-label--short">{chapterShort}</span>
+                            {" "}{toRoman(ci + 1)}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                </div>
+
+                <div class="ctas">
+                  <button type="button" class="btn btn--primary reunion__cta is-visible">
+                    <span class="reunion__cta-icon" aria-hidden="true">
+                      <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:block;margin:auto;" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="10,8 16,12 10,16" fill="currentColor"></polygon>
+                      </svg>
+                    </span>
+                    <span class="reunion__cta-text" data-cta-text>Conoce esta historia</span>
+                  </button>
+                </div>
+              </div>
+              <div class="wrapper__main"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tooltip for the active person — signature + name + audiogram. */}
+      <div class="s5-tooltip" data-tooltip>
+        <div class="s5-tooltip__signature" data-tooltip-signature></div>
+        <p class="s5-tooltip__name" data-tooltip-name></p>
+        <svg
+          class="s5-tooltip__waveform"
+          data-tooltip-waveform
+          viewBox="0 0 120 32"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <path class="s5-tooltip__wave s5-tooltip__wave--main" d={BARS_IDLE} />
+          <path class="s5-tooltip__wave s5-tooltip__wave--core" d={BARS_IDLE} />
+        </svg>
+      </div>
+
+      {/* Mouse-follow player. The ring itself IS the play button — a
+          translucent yellow disc with a play icon inside. The label
+          "ESCUCHAR AHORA" floats independently next to it. Matches the
+          .custom-cursor__player + .custom-cursor__label of the real site. */}
+      <button
+        type="button"
+        class="s5-cursor-play"
+        data-cursor-play
+        data-tooltip-audio
+        aria-label="Escuchar audio"
+      >
+        {/* Ring drawn like a compass — animated stroke-dashoffset from
+            full circumference to 0, starting at 12 o'clock. */}
+        <svg class="s5-cursor-play__ring" viewBox="0 0 72 72" aria-hidden="true">
+          <circle cx="36" cy="36" r="34" />
+        </svg>
+        <svg viewBox="0 0 24 24" class="s5-cursor-play__icon s5-cursor-play__icon--play" aria-hidden="true">
+          <polygon points="8,5 19,12 8,19" fill="currentColor" />
+        </svg>
+        <svg viewBox="0 0 24 24" class="s5-cursor-play__icon s5-cursor-play__icon--pause" aria-hidden="true">
+          <rect x="6" y="4" width="4" height="16" fill="currentColor"/>
+          <rect x="14" y="4" width="4" height="16" fill="currentColor"/>
+        </svg>
+      </button>
+      <span class="s5-cursor-label" data-cursor-label>Escuchar ahora</span>
+
+      {/* Person image overlay layers + invisible hitboxes for hover. */}
+      <div class="s5-people-layers">
+        {reunions.map((r, si) => (
+          <div
+            class:list={["s5-people-layer", { "is-active": si === 0 }]}
+            data-slide={si}
+          >
+            {r.people.map((p, pi) => (
+              <img
+                class="s5-person-img"
+                data-person-index={pi}
+                data-chapter={p.chapter}
+                src={r.images[pi]}
+                alt={p.name}
+                draggable="false"
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Hover hitboxes — one rectangle per person, positioned by the
+          x/y/w/h percentages from reunions-data. The currently active
+          chapter's hitbox is the only one that receives pointer events. */}
+      <div class="s5-hitboxes">
+        {reunions.map((r, si) => (
+          <div class:list={["s5-hitbox-layer", { "is-active": si === 0 }]} data-slide={si}>
+            {r.people.map((p, pi) => (
+              <div
+                class="s5-hitbox"
+                data-person-index={pi}
+                data-chapter={p.chapter}
+                style={`left:${p.x}%;top:${p.y}%;width:${p.width}%;height:${p.height}%;`}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Embedded data for JS: full state machine of slide/chapter/person. */}
+      <script
+        id="s5-data"
+        type="application/json"
+        set:html={JSON.stringify(
+          reunions.map((r) => ({
+            id: r.id,
+            chapters: r.chapters,
+            people: r.people.map((p, pi) => ({
+              name: p.name,
+              chapter: p.chapter,
+              audio: p.audio ?? "",
+              signature: r.signature[pi] ?? "",
+              image: r.images[pi] ?? "",
+              tooltipLeft: p.tooltipLeft ?? 50,
+              tooltipTop: p.tooltipTop ?? 50,
+              tooltipSide: p.tooltipSide ?? "",
+              tooltipOffsetY: p.tooltipOffsetY ?? 0,
+              x: p.x, y: p.y, w: p.width, h: p.height,
+            })),
+          })),
+        )}
+      />
+
+    </div>
+  </section>
+
+  <Gallery
+    locale={L}
+    prevLabel={t(L, "home.galleryPrev")}
+    nextLabel={t(L, "home.galleryNext")}
+  />
+
+  <style is:global>
+    /* Allow vertical scroll — section-5-6 has TWO sections stacked. */
+    html, body {
+      overflow-x: hidden !important;
+      overscroll-behavior: none;
+    }
+    body { background: #0e0d0c; }
+    /* Reunions: pinned full-screen at top, normal scroll continues to Gallery. */
+    #reunions {
+      position: relative;
+    }
+    /* When the play disc is active, the native cursor + BaseLayout's
+       custom-cursor (an SVG ring) must both disappear so there's only
+       one circle visible on screen. */
+    body.s5-hide-cursor,
+    body.s5-hide-cursor * {
+      cursor: none !important;
+    }
+    body.s5-hide-cursor .custom-cursor,
+    body.s5-hide-cursor .custom-cursor__dot {
+      opacity: 0 !important;
+      transition: opacity 0.18s ease;
+    }
+    /* CTA "Conoce esta historia" — yellow fill + white text on hover. */
+    #reunions .reunion__cta {
+      opacity: 1 !important;
+      pointer-events: auto !important;
+      background: transparent;
+      color: #fa9702;
+      border: 1px solid #fa9702;
+      transition:
+        background-color 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+        color 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    #reunions .reunion__cta:hover {
+      background: #fa9702;
+      color: #fff;
+      border-color: #fa9702;
+    }
+    #reunions .reunion__cta:hover .reunion__cta-icon,
+    #reunions .reunion__cta:hover .reunion__cta-text {
+      color: #fff;
+    }
+    .reunion__cta-text {
+      display: inline-block;
+    }
+    .reunion__cta-text span {
+      display: inline-block;
+    }
+    /* Override the scroll-jacked sizing of the real Reunions section: in
+       /section-5 we don't need 500vh of scroll — the slide is a single
+       viewport. */
+    #reunions.reunions {
+      height: 100vh;
+      min-height: 100vh;
+    }
+    .reunions__stage {
+      position: absolute;
+      inset: 0;
+    }
+    .s5-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 0;
+    }
+    .s5-img-pool {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+      visibility: hidden;
+    }
+    /* Person PNG overlays on top of the WebGL canvas. */
+    .s5-people-layers {
+      position: absolute;
+      inset: 0;
+      z-index: 2; /* above canvas, below panel */
+      pointer-events: none;
+    }
+    /* Shared fluid easing curve (easeOutQuart) — same feel everywhere
+       so the whole thing reads as one continuous motion. */
+    .s5-people-layer {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      visibility: hidden;
+      transition:
+        opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 0.75s;
+    }
+    .s5-people-layer.is-active {
+      opacity: 1;
+      visibility: visible;
+      transition:
+        opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 0s;
+    }
+    .s5-person-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0;
+      transform: scale(1.02);
+      transition:
+        opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 1s cubic-bezier(0.22, 1, 0.36, 1);
+      user-select: none;
+    }
+    .s5-person-img.is-active {
+      opacity: 1;
+      transform: scale(1);
+    }
+    /* Tooltip — no box, just text + signature floating over the photo.
+       Matches .reunion__tooltip from the real design. */
+    .s5-tooltip {
+      position: absolute;
+      z-index: 8;
+      pointer-events: none;
+      transform: translate(-50%, -100%);
+      padding: 0.3rem 0.5rem;
+      text-align: left;
+      opacity: 0;
+      transition:
+        opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+        top 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+        left 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .s5-tooltip.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .s5-tooltip__signature {
+      display: flex;
+      align-items: flex-end;
+      margin-bottom: 0.55rem;
+      line-height: 0;
+    }
+    .s5-tooltip__signature img {
+      display: block;
+      width: auto;
+      max-height: 32px;
+      /* Signature SVGs are black artwork; this re-colors them to brand. */
+      filter:
+        brightness(0)
+        invert(70%)
+        sepia(90%)
+        saturate(2500%)
+        hue-rotate(360deg)
+        brightness(105%)
+        contrast(102%);
+      /* "Drawn by hand" reveal — a horizontal mask sweeps left→right.
+         Mask is 200% wide so we can park it at +100% (nothing visible)
+         and animate to 0% (fully visible). */
+      -webkit-mask-image: linear-gradient(
+        to right,
+        #000 0%, #000 50%,
+        transparent 50%, transparent 100%
+      );
+              mask-image: linear-gradient(
+        to right,
+        #000 0%, #000 50%,
+        transparent 50%, transparent 100%
+      );
+      -webkit-mask-size: 200% 100%;
+              mask-size: 200% 100%;
+      -webkit-mask-repeat: no-repeat;
+              mask-repeat: no-repeat;
+      -webkit-mask-position: 100% 0;
+              mask-position: 100% 0;
+      transition:
+        -webkit-mask-position 1.8s cubic-bezier(0.22, 1, 0.36, 1),
+        mask-position 1.8s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .s5-tooltip__signature.is-drawing img {
+      -webkit-mask-position: 0% 0;
+              mask-position: 0% 0;
+    }
+    .s5-tooltip__name {
+      margin: 0 0 0.55rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #fa9702;
+      opacity: 0;
+      transform: translateY(10px);
+      transition:
+        opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .s5-tooltip__name.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .s5-tooltip.is-visible {
+      pointer-events: none;
+    }
+    /* Audiogram below the name — same look as .reunion__tooltip-waveform */
+    .s5-tooltip__waveform {
+      display: block;
+      width: 120px;
+      height: 24px;
+      margin: 0;
+      overflow: visible;
+    }
+    .s5-tooltip__waveform[hidden] { display: none; }
+    .s5-tooltip__wave {
+      fill: none;
+      stroke-linecap: round;
+      transition: opacity 0.35s ease, filter 0.35s ease;
+    }
+    .s5-tooltip__wave--main {
+      stroke: #fa9702;
+      stroke-width: 1.4;
+      opacity: 0.5;
+    }
+    .s5-tooltip__wave--core {
+      stroke: #fa9702;
+      stroke-width: 0.55;
+      opacity: 0;
+    }
+    .s5-tooltip__waveform.is-playing .s5-tooltip__wave--main {
+      opacity: 1;
+      filter: drop-shadow(0 0 3px rgba(250, 151, 2, 0.38));
+    }
+    .s5-tooltip__waveform.is-playing .s5-tooltip__wave--core {
+      opacity: 0.6;
+    }
+    /* Per-person hover hitboxes. Only the active-chapter ones in the
+       active slide receive pointer events. */
+    .s5-hitboxes {
+      position: absolute;
+      inset: 0;
+      z-index: 9; /* above panel/tooltip, below the cursor-play */
+      pointer-events: none;
+    }
+    .s5-hitbox-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .s5-hitbox {
+      position: absolute;
+      pointer-events: none;
+      cursor: none; /* native cursor hidden over the active person */
+    }
+    .s5-hitbox.is-hot {
+      pointer-events: auto;
+      cursor: none;
+    }
+
+    /* ─── Mouse-follow play disc + floating label ──────────────────────── */
+    /* No background, no border — just the SVG ring that draws itself like
+       a compass when the cursor enters the active zone. */
+    .s5-cursor-play {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 10;
+      pointer-events: none;
+      appearance: none;
+      border: none;
+      outline: none;
+      padding: 0;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      /* Subtle warm tint with a soft blur of the photo behind it. */
+      background: rgba(250, 151, 2, 0.07);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fa9702;
+      cursor: none;
+      opacity: 0;
+      transition: opacity 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: transform;
+      transform: translate(-9999px, -9999px);
+    }
+    .s5-cursor-play:focus { outline: none; }
+    .s5-cursor-play.is-visible {
+      opacity: 1;
+      /* Stays pointer-events:none even when visible — clicks go to the
+         hitbox underneath so we never get a hover-loop between the two. */
+    }
+    /* Ring that draws itself like a compass: full circumference of r=34
+       is ~213.6. Start hidden (offset = full length), animate to 0. */
+    .s5-cursor-play__ring {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg); /* start at 12 o'clock */
+      pointer-events: none;
+    }
+    .s5-cursor-play__ring circle {
+      fill: none;
+      stroke: #fa9702;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-dasharray: 213.6;
+      stroke-dashoffset: 213.6;
+      transition: stroke-dashoffset 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .s5-cursor-play.is-visible .s5-cursor-play__ring circle {
+      stroke-dashoffset: 0;
+    }
+    .s5-cursor-play__icon { width: 22px; height: 22px; display: block; }
+    .s5-cursor-play__icon--pause { display: none; }
+    .s5-cursor-play.is-playing .s5-cursor-play__icon--play { display: none; }
+    .s5-cursor-play.is-playing .s5-cursor-play__icon--pause { display: block; }
+
+    /* Floating "Escuchar ahora" label — sits next to the disc with its own
+       (slightly laggier) follow position so it reads as a separate piece. */
+    .s5-cursor-label {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 11;
+      pointer-events: none;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #fa9702;
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: transform;
+      transform: translate(-9999px, -9999px);
+    }
+    .s5-cursor-label.is-visible { opacity: 0.85; }
+    .s5-panels {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+    }
+    .s5-panels > .reunion {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.45s linear;
+    }
+    .s5-panels > .reunion.is-active {
+      opacity: 1;
+      visibility: visible;
+    }
+    /* Active chapter highlight (inside the chapters list). */
+    .reunion__chapters li {
+      opacity: 0.45;
+      transition: opacity 0.3s ease;
+    }
+    .reunion__chapters li.is-active {
+      opacity: 1;
+    }
+  </style>
+
+  <script>
+    import gsap from "gsap";
+    import {
+      animateTextRandomBlur,
+      animateTextRandomBlurOut,
+    } from "../scripts/gsap-text-random-blur";
+
+    // ──────────────────────────────────────────────────────────────────
+    // WebGL setup
+    // ──────────────────────────────────────────────────────────────────
+    const canvas = document.getElementById("s5-canvas") as HTMLCanvasElement | null;
+    const imgEls = Array.from(document.querySelectorAll<HTMLImageElement>(".s5-img-pool img"));
+    const dots = Array.from(document.querySelectorAll<HTMLButtonElement>(".reunion__indicator-dot"));
+    const panels = Array.from(document.querySelectorAll<HTMLElement>(".s5-panel"));
+
+    if (!canvas || !imgEls.length) {
+      console.warn("section-5: canvas or images missing");
+      // Don't abort — the panel/tooltip/waveform still need to initialize.
+    }
+
+    const gl = canvas?.getContext("webgl", { alpha: false, antialias: false }) ?? null;
+    if (!gl) {
+      console.warn("section-5: WebGL not available — slide swap will be instant");
+    }
+
+    const VERT = `
+      attribute vec2 aPos;
+      varying vec2 vUv;
+      void main() {
+        vUv = aPos * 0.5 + 0.5;
+        gl_Position = vec4(aPos, 0.0, 1.0);
+      }
+    `;
+
+    // Exact port of src/shaders/fragment.glsl from Arrlindii/Shader-Image-Transition,
+    // adapted to mix between TWO textures (A → B) instead of revealing one.
+    const FRAG = `
+      precision highp float;
+      varying vec2 vUv;
+      uniform float uProgress;
+      uniform vec2 uSize;            // canvas size in pixels
+      uniform vec2 uTexSizeA;        // texture A natural size
+      uniform vec2 uTexSizeB;        // texture B natural size
+      uniform sampler2D uTextureA;
+      uniform sampler2D uTextureB;
+      #define PI 3.1415926538
+
+      // object-fit: cover — center-crops the texture so it fills the canvas
+      // without distortion regardless of aspect mismatch.
+      vec2 coverUv(vec2 uv, vec2 texSize, vec2 canvasSize) {
+        float canvasAspect = canvasSize.x / canvasSize.y;
+        float texAspect = texSize.x / texSize.y;
+        vec2 scale = canvasAspect > texAspect
+          ? vec2(1.0, texAspect / canvasAspect)
+          : vec2(canvasAspect / texAspect, 1.0);
+        return (uv - 0.5) * scale + 0.5;
+      }
+
+      float noise(vec2 point) {
+        float angle = atan(point.y, point.x) + uProgress * PI;
+        float w0 = (cos(angle) + 1.0) / 2.0;
+        float w1 = (sin(2.0 * angle) + 1.0) / 2.0;
+        float w2 = (cos(3.0 * angle) + 1.0) / 2.0;
+        return (w0 + w1 + w2) / 3.0;
+      }
+
+      float softMax(float a, float b, float k) {
+        return log(exp(k * a) + exp(k * b)) / k;
+      }
+      float softMin(float a, float b, float k) {
+        return -softMax(-a, -b, k);
+      }
+
+      float circleSDF(vec2 pos, float rad) {
+        float a = sin(uProgress * 0.2) * 0.25;
+        float amt = 0.5 + a;
+        float c = length(pos);
+        c += noise(pos) * rad * amt;
+        return c;
+      }
+
+      float radialCircles(vec2 p, float o, float count) {
+        vec2 offset = vec2(o, o);
+        float angle = (2.0 * PI) / count;
+        float s = floor(atan(p.y, p.x) / angle + 0.5);
+        float an = angle * s;
+        vec2 q = vec2(offset.x * cos(an), offset.y * sin(an));
+        return circleSDF(p - q, 15.0);
+      }
+
+      void main() {
+        vec2 coords = vUv * uSize;
+        vec2 o1 = vec2(0.5) * uSize;
+
+        float t = pow(uProgress, 2.5);
+        float radius = uSize.x / 2.0;
+        float rad = t * radius;
+        float c1 = circleSDF(coords - o1, rad);
+
+        // More opening points across the viewport — additional rings/satellites
+        // so the mask blooms from many places, not just the center.
+        vec2 p = (vUv - 0.5) * uSize;
+        float r1 = radialCircles(p, 0.18 * uSize.x, 5.0);   // inner: 5
+        float r2 = radialCircles(p, 0.28 * uSize.x, 6.0);   // mid:   6
+        float r3 = radialCircles(p, 0.40 * uSize.x, 8.0);   // outer: 8
+        float r4 = radialCircles(p, 0.50 * uSize.x, 10.0);  // edge: 10
+
+        float k = 50.0 / uSize.x;
+        float circle = softMin(c1, r1, k);
+        circle = softMin(circle, r2, k);
+        circle = softMin(circle, r3, k);
+        circle = softMin(circle, r4, k);
+
+        // step() gives the original's hard organic edge.
+        circle = step(circle, rad);
+
+        // Outgoing slide zooms OUT (scale 1.0 → 0.94 — drifts away).
+        // Incoming slide zooms IN  (scale 0.94 → 1.0 — comes forward).
+        // Both end at 1.0 so the static slide sits at its natural size.
+        // easeOutCubic on the zoom progress = quick start, soft settle.
+        float zoomEase = 1.0 - pow(1.0 - uProgress, 3.0);
+        float scaleA = mix(1.0, 0.94, zoomEase);
+        float scaleB = mix(0.94, 1.0, zoomEase);
+        vec2 uvA = coverUv(vUv, uTexSizeA, uSize);
+        vec2 uvB = coverUv(vUv, uTexSizeB, uSize);
+        uvA = (uvA - 0.5) / scaleA + 0.5;
+        uvB = (uvB - 0.5) / scaleB + 0.5;
+        vec4 a = texture2D(uTextureA, uvA);
+        vec4 b = texture2D(uTextureB, uvB);
+        gl_FragColor = mix(a, b, circle);
+      }
+    `;
+
+    function compile(type: number, src: string): WebGLShader {
+      const sh = gl!.createShader(type)!;
+      gl!.shaderSource(sh, src);
+      gl!.compileShader(sh);
+      if (!gl!.getShaderParameter(sh, gl!.COMPILE_STATUS)) {
+        const log = gl!.getShaderInfoLog(sh);
+        gl!.deleteShader(sh);
+        throw new Error("Shader compile: " + log);
+      }
+      return sh;
+    }
+
+    const program = gl.createProgram()!;
+    gl.attachShader(program, compile(gl.VERTEX_SHADER, VERT));
+    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAG));
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error("Program link: " + gl.getProgramInfoLog(program));
+    }
+    gl.useProgram(program);
+
+    // Fullscreen quad (two triangles).
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+      gl.STATIC_DRAW,
+    );
+    const aPos = gl.getAttribLocation(program, "aPos");
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+    const uProgress = gl.getUniformLocation(program, "uProgress");
+    const uSize = gl.getUniformLocation(program, "uSize");
+    const uTexSizeA = gl.getUniformLocation(program, "uTexSizeA");
+    const uTexSizeB = gl.getUniformLocation(program, "uTexSizeB");
+    const uTextureA = gl.getUniformLocation(program, "uTextureA");
+    const uTextureB = gl.getUniformLocation(program, "uTextureB");
+
+    // Texture per slide.
+    function makeTexture(img: HTMLImageElement): WebGLTexture {
+      const tex = gl!.createTexture()!;
+      gl!.bindTexture(gl!.TEXTURE_2D, tex);
+      gl!.pixelStorei(gl!.UNPACK_FLIP_Y_WEBGL, true);
+      gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGBA, gl!.RGBA, gl!.UNSIGNED_BYTE, img);
+      gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_S, gl!.CLAMP_TO_EDGE);
+      gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE);
+      gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MIN_FILTER, gl!.LINEAR);
+      gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, gl!.LINEAR);
+      return tex;
+    }
+
+    function whenImageReady(img: HTMLImageElement): Promise<HTMLImageElement> {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve(img);
+      return new Promise((resolve, reject) => {
+        img.addEventListener("load", () => resolve(img), { once: true });
+        img.addEventListener("error", (e) => reject(e), { once: true });
+      });
+    }
+
+    const textures: WebGLTexture[] = new Array(imgEls.length);
+    const texSizes: Array<[number, number]> = new Array(imgEls.length);
+
+    // ──────────────────────────────────────────────────────────────────
+    // Rendering
+    // ──────────────────────────────────────────────────────────────────
+    let currentIdx = 0;
+    let displayIdx = 0; // the index whose texture is currently shown at progress=0
+    let progress = 0;
+    let animFrom = 0;
+    let animTo = 0;
+    let animating = false;
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = canvas!.clientWidth * dpr;
+      const h = canvas!.clientHeight * dpr;
+      if (canvas!.width !== w || canvas!.height !== h) {
+        canvas!.width = w;
+        canvas!.height = h;
+        gl!.viewport(0, 0, w, h);
+      }
+    }
+
+    function render() {
+      resize();
+      gl!.useProgram(program);
+      gl!.uniform1f(uProgress, progress);
+      gl!.uniform2f(uSize, canvas!.width, canvas!.height);
+
+      const tsA = texSizes[animFrom] ?? [canvas!.width, canvas!.height];
+      const tsB = texSizes[animTo] ?? [canvas!.width, canvas!.height];
+      gl!.uniform2f(uTexSizeA, tsA[0], tsA[1]);
+      gl!.uniform2f(uTexSizeB, tsB[0], tsB[1]);
+
+      gl!.activeTexture(gl!.TEXTURE0);
+      gl!.bindTexture(gl!.TEXTURE_2D, textures[animFrom]);
+      gl!.uniform1i(uTextureA, 0);
+
+      gl!.activeTexture(gl!.TEXTURE1);
+      gl!.bindTexture(gl!.TEXTURE_2D, textures[animTo]);
+      gl!.uniform1i(uTextureB, 1);
+
+      gl!.drawArrays(gl!.TRIANGLES, 0, 6);
+    }
+
+    // easeInOutCubic — smooth on both ends, accelerates through the middle.
+    function easeInOutCubic(t: number): number {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+    const transitionEase = easeInOutCubic;
+
+    function startTransition(toIdx: number, onComplete?: () => void) {
+      if (animating || toIdx === currentIdx) return;
+
+      dots[currentIdx]?.classList.remove("is-active");
+      dots[toIdx]?.classList.add("is-active");
+      panels[currentIdx]?.classList.remove("is-active");
+      panels[toIdx]?.classList.add("is-active");
+
+      // Fallback: no WebGL → instant swap.
+      if (!gl) {
+        currentIdx = toIdx;
+        displayIdx = toIdx;
+        onComplete?.();
+        return;
+      }
+
+      animating = true;
+      animFrom = currentIdx;
+      animTo = toIdx;
+      progress = 0;
+      const duration = 950;
+      const start = performance.now();
+
+      function tick(now: number) {
+        const raw = Math.min(1, (now - start) / duration);
+        progress = transitionEase(raw);
+        render();
+        if (raw < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          currentIdx = toIdx;
+          displayIdx = toIdx;
+          progress = 0;
+          animFrom = toIdx;
+          animTo = toIdx;
+          render();
+          animating = false;
+          onComplete?.();
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // Boot
+    // ──────────────────────────────────────────────────────────────────
+    Promise.all(imgEls.map(whenImageReady)).then((imgs) => {
+      imgs.forEach((img, i) => {
+        textures[i] = makeTexture(img);
+        texSizes[i] = [img.naturalWidth, img.naturalHeight];
+      });
+      animFrom = 0;
+      animTo = 0;
+      progress = 0;
+      // First render — but force one more on the next frame, after the
+      // browser has laid out the canvas, so the resolution is correct.
+      render();
+      requestAnimationFrame(render);
+    });
+
+    window.addEventListener("resize", () => { render(); });
+    window.addEventListener("load", () => { render(); });
+
+    const total = imgEls.length;
+
+    // ──────────────────────────────────────────────────────────────────
+    // Embedded reunion data (slides + chapters + people).
+    // ──────────────────────────────────────────────────────────────────
+    type PersonData = {
+      name: string;
+      chapter: number;
+      audio: string;
+      signature: string;
+      image: string;
+      tooltipLeft: number;
+      tooltipTop: number;
+      tooltipSide: string;
+      tooltipOffsetY: number;
+    };
+    type SlideData = { id: string; chapters: number; people: PersonData[] };
+    const slideData: SlideData[] = JSON.parse(
+      document.getElementById("s5-data")?.textContent ?? "[]",
+    );
+
+    // Flat list of all (slide, personIdx) states the user can land on,
+    // in scroll order. Each person inside each slide is one tick.
+    type State = { slide: number; personIdx: number };
+    const states: State[] = slideData.flatMap((s, si) =>
+      s.people.map((_, pi) => ({ slide: si, personIdx: pi })),
+    );
+
+    let currentStateIdx = 0;
+    let audioEl: HTMLAudioElement | null = null;
+
+    const peopleLayers = Array.from(
+      document.querySelectorAll<HTMLElement>(".s5-people-layer"),
+    );
+
+    // Pass -1 to hide every people layer (used while the slide WebGL
+    // transition is in flight — the car appears alone).
+    function setActivePeopleLayer(slideIdx: number) {
+      peopleLayers.forEach((layer, i) => {
+        layer.classList.toggle("is-active", i === slideIdx);
+      });
+    }
+    function hideAllPeopleLayers() {
+      peopleLayers.forEach((layer) => layer.classList.remove("is-active"));
+    }
+
+    const tooltipEl = document.querySelector<HTMLElement>("[data-tooltip]");
+    const tooltipName = document.querySelector<HTMLElement>("[data-tooltip-name]");
+    const tooltipSig = document.querySelector<HTMLElement>("[data-tooltip-signature]");
+    const tooltipAudio = document.querySelector<HTMLButtonElement>("[data-tooltip-audio]");
+    const tooltipWave = document.querySelector<SVGElement>("[data-tooltip-waveform]");
+    const tooltipWaveMain = tooltipWave?.querySelector<SVGPathElement>(".s5-tooltip__wave--main") ?? null;
+    const tooltipWaveCore = tooltipWave?.querySelector<SVGPathElement>(".s5-tooltip__wave--core") ?? null;
+    const cursorPlayEl = document.querySelector<HTMLElement>("[data-cursor-play]");
+    const cursorLabelEl = document.querySelector<HTMLElement>("[data-cursor-label]");
+
+    // ─── Waveform (50 vertical bars, same as the real Reunions) ────────
+    const BARS_N = 50;
+    const BARS_IDLE = (() => {
+      const mid = 16, maxH = 24;
+      let d = "";
+      for (let i = 0; i < BARS_N; i++) {
+        const x = ((i + 0.5) / BARS_N) * 120;
+        const env = Math.sin(Math.PI * (i / (BARS_N - 1)));
+        const shape =
+          Math.abs(Math.sin(i * 0.45)) * 0.55 +
+          Math.abs(Math.sin(i * 0.95 + 1.2)) * 0.3 +
+          Math.abs(Math.sin(i * 1.55 + 0.4)) * 0.15;
+        const h = Math.max(0.6, env * shape * (maxH * 0.28));
+        d += `M ${x.toFixed(1)},${(mid - h).toFixed(1)} L ${x.toFixed(1)},${(mid + h).toFixed(1)} `;
+      }
+      return d.trim();
+    })();
+    function buildBarsPath(t: number): string {
+      const mid = 16, maxH = 24;
+      let d = "";
+      for (let i = 0; i < BARS_N; i++) {
+        const x = ((i + 0.5) / BARS_N) * 120;
+        const env = Math.sin(Math.PI * (i / (BARS_N - 1)));
+        const amp =
+          Math.abs(Math.sin(t * 2.1 + i * 0.55)) * 0.5 +
+          Math.abs(Math.sin(t * 3.7 + i * 0.9)) * 0.3 +
+          Math.abs(Math.sin(t * 1.3 + i * 1.4)) * 0.2;
+        const h = Math.max(0.4, amp * env * maxH);
+        d += `M ${x.toFixed(1)},${(mid - h).toFixed(1)} L ${x.toFixed(1)},${(mid + h).toFixed(1)} `;
+      }
+      return d.trim();
+    }
+    function applyIdleWaveform() {
+      tooltipWaveMain?.setAttribute("d", BARS_IDLE);
+      tooltipWaveCore?.setAttribute("d", BARS_IDLE);
+    }
+    applyIdleWaveform();
+    let waveRaf: number | null = null;
+    function startWaveformAnim() {
+      if (waveRaf !== null) cancelAnimationFrame(waveRaf);
+      tooltipWave?.classList.add("is-playing");
+      let t = 0;
+      const tick = () => {
+        t += 0.045;
+        const d = buildBarsPath(t);
+        tooltipWaveMain?.setAttribute("d", d);
+        tooltipWaveCore?.setAttribute("d", d);
+        waveRaf = requestAnimationFrame(tick);
+      };
+      waveRaf = requestAnimationFrame(tick);
+    }
+    function stopWaveformAnim() {
+      if (waveRaf !== null) cancelAnimationFrame(waveRaf);
+      waveRaf = null;
+      tooltipWave?.classList.remove("is-playing");
+      applyIdleWaveform();
+    }
+
+    // Mouse position + lerped cursor (disc) and label (extra-lag) positions.
+    let mouseX = 0, mouseY = 0;
+    let discX = 0, discY = 0;       // play disc — fast follow
+    let labelX = 0, labelY = 0;     // label — slightly laggier
+    window.addEventListener("mousemove", (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    });
+    function cursorTick() {
+      // Disc follow — 0.18 lerp.
+      discX += (mouseX - discX) * 0.18;
+      discY += (mouseY - discY) * 0.18;
+      if (cursorPlayEl) {
+        // Center the disc on the cursor.
+        cursorPlayEl.style.transform = `translate(${discX - 36}px, ${discY - 36}px)`;
+      }
+      // Label — slightly laggier lerp, centered horizontally BELOW the disc.
+      labelX += (mouseX - labelX) * 0.12;
+      labelY += (mouseY - labelY) * 0.12;
+      if (cursorLabelEl) {
+        // The element's transform-origin is its top-center via the inner
+        // translate(-50%, 0). The outer translate positions that anchor.
+        cursorLabelEl.style.transform = `translate(${labelX}px, ${labelY + 44}px) translate(-50%, 0)`;
+      }
+      requestAnimationFrame(cursorTick);
+    }
+    requestAnimationFrame(cursorTick);
+
+    function setCursorPlayActive(active: boolean) {
+      const on = active && !!tooltipAudio?.dataset.audio;
+      cursorPlayEl?.classList.toggle("is-visible", on);
+      cursorLabelEl?.classList.toggle("is-visible", on);
+      // Hide the native system cursor while the play disc is shown.
+      document.body.classList.toggle("s5-hide-cursor", on);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // Per-person hover hitboxes: the active chapter's box becomes "hot".
+    // ──────────────────────────────────────────────────────────────────
+    const hitboxLayers = Array.from(
+      document.querySelectorAll<HTMLElement>(".s5-hitbox-layer"),
+    );
+    function setActiveHitboxes(slideIdx: number, chapter: number) {
+      hitboxLayers.forEach((layer, i) => {
+        const isCurrentSlide = i === slideIdx;
+        layer.classList.toggle("is-active", isCurrentSlide);
+        layer.querySelectorAll<HTMLElement>(".s5-hitbox").forEach((box) => {
+          const ch = Number(box.dataset.chapter);
+          box.classList.toggle("is-hot", isCurrentSlide && ch === chapter);
+        });
+      });
+    }
+
+    document.querySelectorAll<HTMLElement>(".s5-hitbox").forEach((box) => {
+      box.addEventListener("mouseenter", () => setCursorPlayActive(true));
+      box.addEventListener("mouseleave", () => setCursorPlayActive(false));
+      // Click on the hitbox = play the active person's audio.
+      box.addEventListener("click", () => {
+        if (!box.classList.contains("is-hot")) return;
+        tooltipAudio?.click();
+      });
+    });
+
+    function hideTooltip() {
+      tooltipEl?.classList.remove("is-visible");
+    }
+
+    function updateTooltip(person: PersonData) {
+      if (!tooltipEl) return;
+      // Position by viewport percentages; tooltipOffsetY pushes vertically.
+      tooltipEl.style.left = `${person.tooltipLeft}%`;
+      tooltipEl.style.top = `calc(${person.tooltipTop}% + ${person.tooltipOffsetY}px)`;
+
+      // Name: typing reveal (same feel as the section-2 Interlude lead).
+      // Delay a touch so the tooltip can reach its new position first.
+      if (tooltipName) {
+        tooltipName.classList.add("is-visible");
+        tooltipName.textContent = "";
+        setTimeout(() => {
+          typeText(tooltipName, person.name, { stagger: 0.035, duration: 0.4 });
+        }, 350);
+      }
+
+      if (tooltipSig) {
+        // Reset "drawn" state. We delay the actual drawing slightly so the
+        // tooltip can settle in its new position first — then the signature
+        // visibly traces itself from left to right.
+        tooltipSig.classList.remove("is-drawing");
+        tooltipSig.innerHTML = person.signature
+          ? `<img src="${person.signature}" alt="${person.name}">`
+          : "";
+        if (person.signature) {
+          setTimeout(() => tooltipSig.classList.add("is-drawing"), 600);
+        }
+      }
+      if (tooltipAudio) {
+        tooltipAudio.dataset.audio = person.audio || "";
+      }
+      if (tooltipWave) {
+        tooltipWave.hidden = !person.audio;
+      }
+      stopWaveformAnim();
+      tooltipEl.classList.add("is-visible");
+    }
+
+    function setPlayingState(on: boolean) {
+      cursorPlayEl?.classList.toggle("is-playing", on);
+      if (on) startWaveformAnim();
+      else stopWaveformAnim();
+    }
+
+    tooltipAudio?.addEventListener("click", () => {
+      const src = tooltipAudio.dataset.audio;
+      if (!src) return;
+
+      // Toggle: if the same audio is playing, pause/resume it.
+      if (audioEl && audioEl.src.endsWith(src.replace(/^\//, ""))) {
+        if (audioEl.paused) {
+          audioEl.play().catch(() => setPlayingState(false));
+          setPlayingState(true);
+        } else {
+          audioEl.pause();
+          setPlayingState(false);
+        }
+        return;
+      }
+
+      // Different audio (or first play) → start fresh.
+      if (audioEl) { audioEl.pause(); audioEl = null; }
+      audioEl = new Audio(src);
+      setPlayingState(true);
+      audioEl.addEventListener("ended", () => setPlayingState(false));
+      audioEl.addEventListener("pause", () => {
+        if (audioEl && !audioEl.ended) setPlayingState(false);
+      });
+      audioEl.play().catch(() => setPlayingState(false));
+    });
+
+    function updatePanelToPerson(slideIdx: number, personIdx: number) {
+      const slide = slideData[slideIdx];
+      if (!slide) return;
+      const person = slide.people[personIdx];
+      if (!person) return;
+
+      const panel = panels[slideIdx];
+      if (!panel) return;
+
+      // Highlight the active chapter (1-based) in the list.
+      const chapterLis = panel.querySelectorAll<HTMLElement>(".reunion__chapters li");
+      chapterLis.forEach((li, i) => {
+        li.classList.toggle("is-active", i + 1 === person.chapter);
+      });
+
+      // Only the people of the active chapter are visible (the rest hidden).
+      setActivePeopleLayer(slideIdx);
+      const layer = peopleLayers[slideIdx];
+      if (layer) {
+        layer.querySelectorAll<HTMLImageElement>(".s5-person-img").forEach((img) => {
+          const ch = Number(img.dataset.chapter);
+          img.classList.toggle("is-active", ch === person.chapter);
+        });
+      }
+      // Activate the hover hitbox(es) for this chapter.
+      setActiveHitboxes(slideIdx, person.chapter);
+      // Hide the play cursor when the active person changes — it will
+      // re-appear when the user moves the mouse over the new hitbox.
+      setCursorPlayActive(false);
+
+      // Tooltip with name, signature, audio — positioned over the person.
+      updateTooltip(person);
+    }
+
+    // Initial state.
+    updatePanelToPerson(0, 0);
+
+    // ──────────────────────────────────────────────────────────────────
+    // Replace dot click + keyboard handlers with state-aware navigation.
+    // ──────────────────────────────────────────────────────────────────
+    dots.forEach((d, i) => d.addEventListener("click", () => goToStateForSlide(i)));
+
+    // Chapter list clicks: jump to the first state of this slide whose
+    // person belongs to that chapter.
+    panels.forEach((panel, slideIdx) => {
+      const chapterLis = panel.querySelectorAll<HTMLElement>(".reunion__chapters li");
+      chapterLis.forEach((li) => {
+        const chapterNum = Number(li.dataset.chapter);
+        li.style.cursor = "pointer";
+        li.addEventListener("click", () => {
+          const targetState = states.findIndex(
+            (s) =>
+              s.slide === slideIdx &&
+              slideData[slideIdx].people[s.personIdx]?.chapter === chapterNum,
+          );
+          if (targetState >= 0) goToState(targetState);
+        });
+      });
+
+      // CTA "Conoce esta historia" — plays the currently selected person's
+      // audio (same toggle behavior as the play disc).
+      const cta = panel.querySelector<HTMLButtonElement>(".reunion__cta");
+      const ctaText = panel.querySelector<HTMLElement>("[data-cta-text]");
+      const ctaLabel = ctaText?.textContent || "Conoce esta historia";
+      cta?.addEventListener("click", () => {
+        tooltipAudio?.click();
+      });
+      // Hover → typing reveal of the label (re-runs each time).
+      cta?.addEventListener("mouseenter", () => {
+        if (!ctaText) return;
+        typeText(ctaText, ctaLabel, { stagger: 0.025, duration: 0.28 });
+      });
+    });
+
+    function goToStateForSlide(slideIdx: number) {
+      // Jump to the first person of that slide.
+      const target = states.findIndex((s) => s.slide === slideIdx);
+      if (target >= 0) goToState(target);
+    }
+
+    // Typing animation — splits text into per-char spans and fades them
+    // in sequentially. Same feel as the Interlude (section 2) lead reveal.
+    function typeText(
+      el: HTMLElement,
+      text: string,
+      { stagger = 0.025, duration = 0.32 } = {},
+    ) {
+      el.textContent = "";
+      const chars: HTMLElement[] = [];
+      for (const ch of text) {
+        const span = document.createElement("span");
+        span.textContent = ch === " " ? " " : ch;
+        span.style.display = "inline-block";
+        span.style.opacity = "0";
+        el.appendChild(span);
+        chars.push(span);
+      }
+      gsap.to(chars, {
+        opacity: 1,
+        duration,
+        stagger,
+        ease: "power2.out",
+      });
+    }
+
+    function animatePanelTextIn(slideIdx: number) {
+      const panel = panels[slideIdx];
+      if (!panel) return;
+      // Country = typing (like the section-2 lead).
+      const countryEl = panel.querySelector<HTMLElement>(".reunion__location-country");
+      if (countryEl) {
+        const cur = countryEl.textContent || "";
+        typeText(countryEl, cur, { stagger: 0.04, duration: 0.45 });
+      }
+      // Model + VIN keep the random-blur entrance.
+      const titleEl = panel.querySelector<HTMLElement>(".reunion__title");
+      const vinEl = panel.querySelector<HTMLElement>(".reunion__vin-number");
+      if (titleEl) animateTextRandomBlur(titleEl);
+      if (vinEl) animateTextRandomBlur(vinEl);
+    }
+    function animatePanelTextOut(slideIdx: number) {
+      const panel = panels[slideIdx];
+      if (!panel) return;
+      const targets = [
+        panel.querySelector<HTMLElement>(".reunion__title"),
+        panel.querySelector<HTMLElement>(".reunion__vin-number"),
+      ].filter(Boolean) as HTMLElement[];
+      targets.forEach((el) => animateTextRandomBlurOut(el, () => {}));
+    }
+
+    function goToState(idx: number) {
+      idx = Math.max(0, Math.min(states.length - 1, idx));
+      if (idx === currentStateIdx) return;
+
+      const next = states[idx];
+      currentStateIdx = idx;
+
+      const slideChanged =
+        next.slide !== (animating ? animTo : currentIdx);
+
+      if (slideChanged) {
+        // Hide all people + tooltip first so the WebGL transition (car alone,
+        // zoom in) happens cleanly. The new person + tooltip fade in after
+        // the zoom-in has mostly settled.
+        hideAllPeopleLayers();
+        hideTooltip();
+        // Random-blur OUT the outgoing slide's text (country, model, VIN).
+        animatePanelTextOut(currentIdx);
+        startTransition(next.slide);
+        setTimeout(() => {
+          updatePanelToPerson(next.slide, next.personIdx);
+          animatePanelTextIn(next.slide);
+        }, 550);
+      } else {
+        // Same slide, different person — instant panel update.
+        updatePanelToPerson(next.slide, next.personIdx);
+      }
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        goToState(currentStateIdx - 1);
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        goToState(currentStateIdx + 1);
+      }
+    });
+
+    // ──────────────────────────────────────────────────────────────────
+    // Scroll-driven: each wheel/touch tick advances ONE state. The page
+    // doesn't release the scroll until the user has passed the last state.
+    // ──────────────────────────────────────────────────────────────────
+    const SCROLL_DEBOUNCE_MS = 220;
+    let scrollLockUntil = 0;
+    let lastWheelTs = 0;
+
+    // ──────────────────────────────────────────────────────────────────
+    // Gallery handoff: after the last person of the last reunion, advancing
+    // again triggers the same blob shader transition (using the first
+    // Gallery image as the destination texture) and then auto-scrolls the
+    // page down so Gallery takes over.
+    // ──────────────────────────────────────────────────────────────────
+    let didHandoff = false;
+    function transitionToGallery() {
+      if (didHandoff) return;
+      // The gallery image is the last entry in imgEls / textures (we
+      // pushed it after the 3 reunion bg's).
+      const gallerySlot = textures.length - 1;
+      if (gallerySlot < 0 || !textures[gallerySlot]) return;
+      didHandoff = true;
+      hideAllPeopleLayers();
+      hideTooltip();
+      startTransition(gallerySlot, () => {
+        // After the blob completes, smooth-scroll to the Gallery section.
+        const gallery = document.getElementById("gallery");
+        if (gallery) {
+          gallery.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        // Release wheel-jacking so Gallery's own slider works.
+        webglJacked = false;
+      });
+    }
+
+    // While webglJacked is true, wheel events drive the Reunions state
+    // machine. Once we hand off to Gallery, we set this to false and
+    // wheel events scroll the page normally.
+    let webglJacked = true;
+
+    function tryScrollChange(direction: 1 | -1) {
+      const now = performance.now();
+      if (animating || now < scrollLockUntil) return false;
+      const next = currentStateIdx + direction;
+
+      // End of Reunions + scroll down → trigger the Gallery handoff.
+      if (direction === 1 && next >= states.length) {
+        if (!didHandoff) {
+          scrollLockUntil = now + 1200;
+          transitionToGallery();
+          return true;
+        }
+        return false;
+      }
+      if (next < 0) return false;
+
+      const prevSlide = states[currentStateIdx].slide;
+      const nextSlide = states[next].slide;
+      const lockMs = prevSlide !== nextSlide ? 950 + SCROLL_DEBOUNCE_MS : 280;
+      scrollLockUntil = now + lockMs;
+      goToState(next);
+      return true;
+    }
+
+    // Stop Lenis while the WebGL slider is the active scroll consumer.
+    const w = window as Window & typeof globalThis & {
+      lenis?: { stop?: () => void; start?: () => void };
+    };
+    w.lenis?.stop?.();
+    setTimeout(() => w.lenis?.stop?.(), 100);
+    setTimeout(() => w.lenis?.stop?.(), 500);
+
+    window.addEventListener(
+      "wheel",
+      (e) => {
+        if (!webglJacked) return; // Gallery has the scroll now.
+        e.preventDefault();
+        e.stopPropagation();
+        const now = performance.now();
+        if (now - lastWheelTs < SCROLL_DEBOUNCE_MS) return;
+        const dy = e.deltaY;
+        if (Math.abs(dy) < 5) return;
+        lastWheelTs = now;
+        tryScrollChange(dy > 0 ? 1 : -1);
+      },
+      { passive: false, capture: true },
+    );
+
+    let touchStartY = 0;
+    let touchActive = false;
+    window.addEventListener(
+      "touchstart",
+      (e) => {
+        if (!webglJacked) return;
+        if (e.touches.length !== 1) return;
+        touchStartY = e.touches[0].clientY;
+        touchActive = true;
+      },
+      { passive: true },
+    );
+    window.addEventListener(
+      "touchmove",
+      (e) => {
+        if (!webglJacked || !touchActive) return;
+        const dy = touchStartY - e.touches[0].clientY;
+        if (Math.abs(dy) > 40) {
+          touchActive = false;
+          tryScrollChange(dy > 0 ? 1 : -1);
+        }
+      },
+      { passive: true },
+    );
+    window.addEventListener("touchend", () => { touchActive = false; }, { passive: true });
+  </script>
+</BaseLayout>

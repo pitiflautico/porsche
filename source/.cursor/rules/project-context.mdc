@@ -1,0 +1,36 @@
+---
+description: Project stack, structure, and conventions for Porsche Reunions
+alwaysApply: true
+---
+
+# Porsche Reunions — Project Context
+
+## Stack
+- Astro 5 (SSG, static output) + SCSS (no Tailwind)
+- Sanity CMS — `galleryPhoto` schema only (GROQ queries)
+- GSAP 3 + Lenis (smooth scroll, connected via `smooth-scroll.ts`)
+- Netlify hosting + Cloudflare (rate limiting)
+
+## Key Paths
+- `frontend/src/components/` — Astro components with co-located `.scss`
+- `frontend/src/components/sections/` — page sections (Hero, Reunions, Gallery, Quotes, Stories, LogoBlock, Footer)
+- `frontend/src/components/Header/` — `Header.astro` + `header.scss`
+- `frontend/src/layouts/BaseLayout.astro` — root layout (Header → main slot → Footer + SubmitModal)
+- `frontend/src/styles/` — `_variables.scss`, `_mixins.scss`, `_layout.scss`, `global.scss`
+- `frontend/src/scripts/` — `smooth-scroll.ts`, `cursor.ts`, `split-hover.ts`
+- `docs/` — `AI_GUARDRAILS.md`, `MASTER_TECHNICAL_SPEC.md`, `AGENT_SKILLS.md`
+
+## Conventions
+- SCSS BEM-like naming (`.nav__link--submit`)
+- GSAP plugins registered per-component (no central setup file)
+- `smooth-scroll.ts` connects Lenis + ScrollTrigger via `gsap.ticker`
+- Header is `position: fixed` (set in `_layout.scss`)
+- `is-hero-out` class on `<body>` toggles when `#hero` leaves viewport (IntersectionObserver in `Header.astro`)
+- `data-section` attributes on sections drive GA4 `section_view` events
+- i18n: `es` (default) + `en` via `/en/` prefix; `localeBase()` utility
+
+## Hard Constraints (from AI_GUARDRAILS)
+- No auth, no APIs, no databases, no email systems
+- Do not modify Sanity schemas unless explicitly requested
+- Code and comments in English; commits in English
+- Submissions handled externally by Storystream (do not touch)

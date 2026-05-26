@@ -1,0 +1,184 @@
+// SASS Mixins for Porsche Cayenne Black Edition Landing
+
+// Import variables to use SASS variables
+@use 'variables' as *;
+
+// Layout Mixins
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@mixin flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+@mixin absolute-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+@mixin absolute-cover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+// Animation Mixins
+@mixin smooth-transition($property: all, $duration: $transition-base) {
+  transition: $property $duration;
+}
+
+@mixin hover-lift {
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: $shadow-lg;
+  }
+}
+
+@mixin hover-scale($scale: 1.05) {
+  &:hover {
+    transform: scale($scale);
+  }
+}
+
+// Visual Mixins
+@mixin gradient-bg($start, $end) {
+  background: linear-gradient(135deg, $start 0%, $end 100%);
+}
+
+@mixin text-shadow {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+@mixin backdrop-blur($amount: 5px) {
+  backdrop-filter: blur($amount);
+  -webkit-backdrop-filter: blur($amount);
+}
+
+// Form Mixins
+@mixin form-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid $border-color;
+  border-radius: $border-radius;
+  font-size: $font-size-base;
+  font-family: $font-primary;
+  @include smooth-transition;
+  background: $white;
+
+  &:focus {
+    outline: none;
+    border-color: $primary-color;
+    box-shadow: 0 0 0 3px rgba($primary-color, 0.1);
+  }
+
+  &::placeholder {
+    color: $light-gray;
+  }
+}
+
+// Button Mixins
+@mixin button-base {
+  display: inline-block;
+  padding: 0.975rem 1.5rem;
+  border: none;
+  border-radius: $border-radius-sm;
+  font-family: $font-primary;
+  font-size: $font-size-lg;
+  font-weight: $font-weight-regular;
+  line-height: 1;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+  @include smooth-transition;
+  position: relative;
+  overflow: hidden;
+  background: transparent;
+}
+
+@mixin button-hover {
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: $shadow-lg;
+  }
+}
+
+// Card Mixins
+@mixin card {
+  background: $white;
+  border-radius: $border-radius-xl;
+  padding: $spacing-xl;
+  box-shadow: $shadow;
+  @include smooth-transition;
+
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: $shadow-lg;
+  }
+}
+
+// Grid Mixins
+@mixin grid($columns: auto-fit, $min-width: 250px) {
+  display: grid;
+  grid-template-columns: repeat($columns, minmax($min-width, 1fr));
+  gap: $spacing-xl;
+}
+
+// Responsive Mixins
+@mixin mobile {
+  @media (max-width: $mobile) {
+    @content;
+  }
+}
+
+@mixin tablet {
+  @media (max-width: $tablet) {
+    @content;
+  }
+}
+
+@mixin desktop {
+  @media (min-width: $desktop) {
+    @content;
+  }
+}
+
+// Typography Mixins
+@mixin heading($size: $font-size-2xl, $weight: $font-weight-bold) {
+  font-size: $size;
+  font-weight: $weight;
+  line-height: $line-height-tight;
+  margin-bottom: $spacing-md;
+}
+
+@mixin text-responsive($min-size, $max-size) {
+  font-size: clamp($min-size, 3.25vw, $max-size);
+}
+
+// Animation Mixins
+@mixin fade-in($duration: 0.8s) {
+  animation: fadeIn $duration ease-out;
+}
+
+@mixin slide-in-left($duration: 0.8s) {
+  animation: slideInLeft $duration ease-out;
+}
+
+@mixin slide-in-right($duration: 0.8s) {
+  animation: slideInRight $duration ease-out;
+}

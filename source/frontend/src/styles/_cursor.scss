@@ -1,0 +1,154 @@
+// ============================================
+// CUSTOM CURSOR
+//
+// Customize via CSS custom properties:
+//   --cursor-ring-color     ring stroke color       (default: white)
+//   --cursor-dot-color      dot fill color          (default: white)
+//   --cursor-blend-mode     ring mix-blend-mode     (default: difference)
+//
+// Or via initCursor() params: ringColor, dotColor
+// ============================================
+
+:root {
+  --cursor-ring-color: white;
+  --cursor-dot-color: white;
+}
+
+.custom-cursor {
+  position: fixed;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 9998;
+  mix-blend-mode: var(--cursor-blend-mode, difference);
+  opacity: 0;
+  transition: opacity 0.3s;
+  will-change: transform;
+
+  circle {
+    fill: none;
+    stroke: var(--cursor-ring-color);
+    stroke-width: 1px;
+  }
+}
+
+.custom-cursor__dot {
+  position: fixed;
+  top: -3px;
+  left: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cursor-dot-color);
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.3s;
+  will-change: transform;
+}
+
+// Player cursor — blurred circle, replaces ring when data-cursor="play"
+.custom-cursor__player {
+  position: fixed;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(250, 151, 2, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  will-change: transform;
+
+  &.is-visible {
+    opacity: 1;
+  }
+}
+
+.custom-cursor__player-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  color: #fff;
+  flex-shrink: 0;
+
+  &--pause {
+    display: none;
+  }
+
+  &--play {
+    display: block;
+  }
+}
+
+body.is-audio-playing {
+  .custom-cursor__player-icon--play  { display: none; }
+  .custom-cursor__player-icon--pause { display: block; }
+  .custom-cursor__label { opacity: 0 !important; }
+}
+
+// Floating label — appears next to the ring in play mode
+.custom-cursor__label {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 9999;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cursor-ring-color);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  will-change: transform;
+
+  &.is-visible {
+    opacity: 0.8;
+  }
+}
+
+// Hide on touch devices
+@media (hover: none) {
+  .custom-cursor,
+  .custom-cursor__dot,
+  .custom-cursor__player,
+  .custom-cursor__label {
+    display: none;
+  }
+}
+
+// Hide native cursor on pointer devices only (skip when pointer mode is on)
+@media (hover: hover) {
+  body:not(.cursor-pointer-mode) *,
+  body:not(.cursor-pointer-mode) *::before,
+  body:not(.cursor-pointer-mode) *::after {
+    cursor: none !important;
+  }
+}
+
+// When pointer mode: show native cursor, hide custom dot
+body.cursor-pointer-mode .custom-cursor__dot {
+  display: none !important;
+}
+
+@media (hover: hover) {
+  html body.cursor-pointer-mode,
+  html body.cursor-pointer-mode *,
+  html body.cursor-pointer-mode *::before,
+  html body.cursor-pointer-mode *::after {
+    cursor: default !important;
+  }
+  html body.cursor-pointer-mode a,
+  html body.cursor-pointer-mode button,
+  html body.cursor-pointer-mode [role="button"],
+  html body.cursor-pointer-mode .btn,
+  html body.cursor-pointer-mode [data-cursor] {
+    cursor: pointer !important;
+  }
+}

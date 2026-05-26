@@ -1,0 +1,267 @@
+---
+import CloseButton from "../CloseButton/CloseButton.astro";
+import "./submit-modal.scss";
+
+interface Props {
+  closeLabel?: string;
+  /** Optional title for the mobile header strip (e.g. "Submit your story") */
+  headerTitle?: string;
+  /** Storystream submission widget token (locale-specific) */
+  embedToken: string;
+}
+
+const { closeLabel = "Close", headerTitle, embedToken } = Astro.props;
+---
+
+<div
+  id="submit-modal"
+  class:list={["submit-modal", headerTitle && "submit-modal--with-header"]}
+  aria-hidden="true"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Submit story"
+  data-embed-token={embedToken}
+>
+  <div class="submit-modal__backdrop" id="submit-modal-backdrop"></div>
+  <div class="submit-modal__container">
+    <!-- Desktop: fixed close (top-right). Mobile: close lives in header. -->
+    <CloseButton
+      id="submit-modal-close-desktop"
+      label={closeLabel}
+      class="submit-modal__close submit-modal__close--desktop"
+      aria-label={closeLabel}
+    />
+    {
+      headerTitle ? (
+        <header class="submit-modal__header">
+          <span class="submit-modal__header-title">{headerTitle}</span>
+          <CloseButton
+            id="submit-modal-close-mobile"
+            label={closeLabel}
+            class="submit-modal__close submit-modal__close--mobile"
+            aria-label={closeLabel}
+          />
+        </header>
+      ) : null
+    }
+    <div class="submit-modal__iframe-wrap" data-lenis-prevent>
+      <div id="stry-wrapper"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import gsap from "gsap";
+
+  (function () {
+    const modal = document.getElementById("submit-modal");
+    if (!modal) return;
+
+    const backdrop = document.getElementById("submit-modal-backdrop");
+    const closeButtons = modal.querySelectorAll(".submit-modal__close");
+    const container = modal.querySelector(".submit-modal__container");
+    const triggers = document.querySelectorAll("[data-open-submit-modal]");
+
+    let lastTrigger: HTMLElement | null = null;
+    let storyStreamLoaded = false;
+    const reducedMotion = () =>
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function loadStoryStream() {
+      if (storyStreamLoaded) return;
+      storyStreamLoaded = true;
+
+      // Two #stry-wrapper elements exist: one in the Stories section (first in DOM)
+      // and one here in the modal. getElementById always returns the first match,
+      // so we temporarily strip the id from any wrapper outside this modal so the
+      // Storystream submission script mounts into the correct (modal) wrapper.
+      const modalWrapper = modal.querySelector("#stry-wrapper");
+      const otherWrappers = Array.from(
+        document.querySelectorAll('[id="stry-wrapper"]'),
+      ).filter((el) => el !== modalWrapper);
+      otherWrappers.forEach((el) => el.removeAttribute("id"));
+
+      const script = document.createElement("script");
+      script.type = "text/javascript";
+      script.src =
+        "https://apps.storystream.ai/app/js/" + modal.dataset.embedToken + ".js";
+      script.onload = () => {
+        // Restore IDs so the Stories section widget keeps working
+        otherWrappers.forEach((el) => (el.id = "stry-wrapper"));
+      };
+      document.body.appendChild(script);
+    }
+
+    function openModal(e?: Event) {
+      lastTrigger = (e?.currentTarget as HTMLElement) ?? null;
+      const fbq = (window as unknown as { fbq?: (...args: unknown[]) => void })
+        .fbq;
+      fbq?.("track", "ViewContent");
+      loadStoryStream();
+      modal.setAttribute("aria-hidden", "false");
+      modal.classList.add("is-open");
+      const scrollbarWidth =
+        window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = "hidden";
+      if (scrollbarWidth > 0)
+        document.body.style.paddingRight = scrollbarWidth + "px";
+      (
+        window as unknown as Record<string, unknown> & {
+          lenis?: { stop(): void };
+        }
+      ).lenis?.stop();
+
+      const dur = reducedMotion() ? 0.15 : 0.28;
+      const delay = reducedMotion() ? 0.04 : 0.1;
+      const yFrom = reducedMotion() ? 0 : 30;
+
+      gsap.set(modal, { opacity: 1 });
+      gsap.set(backdrop, { opacity: 1 });
+      gsap.set(container, { opacity: 0, y: yFrom });
+      closeButtons.forEach((btn) => gsap.set(btn, { opacity: 0 }));
+
+      const tl = gsap.timeline({ onComplete: () => focusFirstClose() });
+      tl.to(
+        container,
+        { opacity: 1, y: 0, duration: dur, ease: "power2.out", delay },
+        0,
+      );
+      tl.to(closeButtons, { opacity: 1, duration: 0.2, delay: 0.08 }, "-=0.15");
+    }
+
+    function focusFirstClose() {
+      const first = Array.from(closeButtons).find(
+        (el) => (el as HTMLElement).offsetParent !== null,
+      );
+      if (first instanceof HTMLElement) first.focus();
+    }
+
+    function closeModal() {
+      const trigger = lastTrigger;
+      lastTrigger = null;
+
+      const tl = gsap.timeline({
+        onComplete: () => {
+          gsap.set(modal, { opacity: 0 });
+          modal.classList.remove("is-open");
+          modal.setAttribute("aria-hidden", "true");
+          document.body.style.overflow = "";
+          document.body.style.paddingRight = "";
+          (
+            window as unknown as Record<string, unknown> & {
+              lenis?: { start(): void };
+            }
+          ).lenis?.start();
+          trigger?.focus();
+        },
+      });
+      const exitDur = reducedMotion() ? 0.12 : 0.2;
+      tl.to(container, {
+        opacity: 0,
+        y: reducedMotion() ? 0 : 20,
+        duration: exitDur,
+        ease: "power2.in",
+      });
+      tl.to(closeButtons, { opacity: 0, duration: 0.1 }, "<");
+    }
+
+    backdrop?.addEventListener("click", closeModal);
+    closeButtons.forEach((btn) => btn.addEventListener("click", closeModal));
+
+    function onEscape(e: KeyboardEvent) {
+      if (e.key === "Escape" && modal.classList.contains("is-open")) {
+        e.preventDefault();
+        closeModal();
+      }
+    }
+    window.addEventListener("keydown", onEscape, true);
+
+    triggers.forEach((el) => {
+      el.addEventListener("click", (e) => openModal(e));
+    });
+  })();
+</script>
+
+<script is:inline>
+  (function () {
+    var modal = document.getElementById("submit-modal");
+    if (!modal) return;
+
+    var leadFired = false;
+    var observer = null;
+
+    function fireLead() {
+      if (leadFired) return;
+      leadFired = true;
+
+      var lang =
+        document.documentElement.lang ||
+        (location.pathname.startsWith("/en") ? "en" : "es");
+
+      if (typeof fbq === "function") {
+        fbq("track", "Lead", { content_category: "story_submission", content_name: lang });
+      }
+
+      if (typeof gtag === "function") {
+        gtag("event", "submit_success", {
+          send_to: "G-VDKT3GY3Z3",
+          click_element: "story_submission",
+          language: lang,
+        });
+      }
+
+      if (window.floodlight && typeof window.floodlight.trackClick === "function") {
+        window.floodlight.trackClick("story_submission_success");
+      }
+    }
+
+    function startObserver() {
+      if (observer) return;
+      observer = new MutationObserver(function () {
+        var confirmation = modal.querySelector(".stry-confirmation-module");
+        if (!confirmation) return;
+        var isHidden =
+          confirmation.hasAttribute("hidden") ||
+          confirmation.classList.contains("hidden") ||
+          confirmation.style.display === "none";
+        if (!isHidden) {
+          fireLead();
+          stopObserver();
+        }
+      });
+      observer.observe(modal, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden", "class", "style"] });
+    }
+
+    function stopObserver() {
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+    }
+
+    // Reset per modal open so repeated opens each get their own Lead chance
+    modal.addEventListener("transitionend", function () {
+      if (modal.classList.contains("is-open")) {
+        leadFired = false;
+        startObserver();
+      } else {
+        stopObserver();
+      }
+    });
+
+    // Fallback: start immediately if modal opens without transition
+    var openObserver = new MutationObserver(function (mutations) {
+      mutations.forEach(function (m) {
+        if (m.attributeName === "aria-hidden") {
+          if (modal.getAttribute("aria-hidden") === "false") {
+            leadFired = false;
+            startObserver();
+          } else {
+            stopObserver();
+          }
+        }
+      });
+    });
+    openObserver.observe(modal, { attributes: true, attributeFilter: ["aria-hidden"] });
+  })();
+</script>

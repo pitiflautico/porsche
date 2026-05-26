@@ -1,0 +1,30 @@
+/* Porsche Font Face Declarations */
+@font-face {
+  font-family: 'Porsche Next';
+  src: url('/fonts/porschenext-regular-webfont.woff2') format('woff2'),
+    url('/fonts/porschenext-regular-webfont.woff') format('woff'),
+    url('/fonts/porschenext-regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Porsche Next';
+  src: url('/fonts/porschenext-semibold-webfont.woff2') format('woff2'),
+    url('/fonts/porschenext-semibold-webfont.woff') format('woff'),
+    url('/fonts/porschenext-semibold.otf') format('opentype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Porsche Next';
+  src: url('/fonts/porschenext-bold-webfont.woff2') format('woff2'),
+    url('/fonts/porschenext-bold-webfont.woff') format('woff'),
+    url('/fonts/porschenext-bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}

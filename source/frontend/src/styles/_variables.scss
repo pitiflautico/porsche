@@ -1,0 +1,47 @@
+$font-porsche: 'Porsche Next', sans-serif;
+$font-sans: $font-porsche;
+$font-mono: ui-monospace, monospace;
+
+$color-brand: #fa9702;
+$color-text: #fa9702;
+$color-text-muted: #87837b;
+$color-light: #fff;
+$color-dark: #000;
+$color-bg: #1B1A17;
+$color-border: #ddd;
+$color-link: #fa9702;
+$color-link-hover: #fa9702;
+$color-error: #ffa1a1;
+$color-card: #252015;
+
+$space-xs: 0.25rem;
+$space-sm: 0.5rem;
+$space-md: 1rem;
+$space-lg: 1.5rem;
+$space-xl: 2rem;
+$space-2xl: 3rem;
+
+// Breakpoints (min-width)
+$bp-sm: 480px;
+$bp-md: 768px;
+$bp-lg: 1024px;
+$bp-xl: 1160px;
+$bp-2xl: 1536px;
+
+// Breakpoints for mixins (max-width mobile/tablet, min-width desktop)
+$mobile: 719px;
+$tablet: 1024px;
+$desktop: 1025px;
+
+$container-max: 1500px;
+$radius: 4px;
+
+$letter-spacing: 0.14em;
+
+$font-size-base: 1rem;
+$font-size-xs: 0.8rem;
+$font-size-sm: 0.875rem;
+
+:root {
+  --color-brand: #{$color-brand};
+}

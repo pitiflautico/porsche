@@ -1,0 +1,172 @@
+---
+import "../styles/global.scss";
+import "./base-layout.scss";
+import Head from "../components/Head/Head.astro";
+import StructuredData from "../components/Head/StructuredData.astro";
+import Header from "../components/Header/Header.astro";
+import Footer from "../components/Footer/Footer.astro";
+import SubmitModal from "../components/SubmitModal/SubmitModal.astro";
+import Intro from "../components/Intro/Intro.astro";
+import { t, type Locale, defaultLocale, localeBase } from "../i18n/utils";
+
+interface Props {
+  title: string;
+  description?: string;
+  image?: string;
+  /** Override canonical URL; defaults to site + current path */
+  canonical?: string;
+  locale: Locale;
+  current?: "home";
+  /** Optional class name(s) applied to the body (e.g. "page-submit" for submit/confirmation) */
+  bodyClass?: string;
+  /** When true: hide custom cursor dot and show native pointer */
+  pointer?: boolean;
+  /** Override OG title separately from the page <title> */
+  ogTitle?: string;
+  /** Override OG/Twitter description separately from meta description */
+  ogDescription?: string;
+  /** Skip the Intro/preload animation (useful for dev/isolated pages). */
+  noIntro?: boolean;
+}
+const {
+  title,
+  description,
+  image,
+  canonical: canonicalProp,
+  locale,
+  current,
+  bodyClass,
+  pointer: cursorPointer = false,
+  ogTitle,
+  ogDescription,
+  noIntro = false,
+} = Astro.props;
+const base = localeBase(locale);
+const canonical =
+  canonicalProp ??
+  (Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined);
+
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <Head
+      title={title}
+      description={description}
+      image={image}
+      canonical={canonical}
+      ogTitle={ogTitle}
+      ogDescription={ogDescription}
+    >
+      <Fragment slot="head">
+        <slot name="head" />
+      </Fragment>
+    </Head>
+    <StructuredData locale={locale} canonical={canonical} />
+  </head>
+  <body class:list={[bodyClass, { "cursor-pointer-mode": cursorPointer }]} data-cursor-pointer={cursorPointer}>
+    {!noIntro && <Intro />}
+    <Header
+      current={current}
+      locale={locale}
+      base={base}
+      navHome={t(locale, "nav.home")}
+      navSubmit={t(locale, "nav.submit")}
+      navReunions={t(locale, "nav.reunions")}
+      navGallery={t(locale, "nav.gallery")}
+      navStories={t(locale, "nav.stories")}
+      navMenuLabel={t(locale, "nav.menu")}
+      navCloseMenuLabel={t(locale, "nav.closeMenu")}
+      navEmail={t(locale, "nav.email")}
+    />
+    <main>
+      <slot />
+    </main>
+    <Footer tagline={t(locale, "footer.tagline")} />
+    <SubmitModal
+      closeLabel={t(locale, "nav.closeMenu")}
+      headerTitle={t(locale, "nav.submit")}
+      embedToken={locale === "en" ? "ZGNiZDg4ZTdkMjI1ZjgxY2Y4" : "MjM1MTlmY2RjODg2NmU1MTI5"}
+    />
+    <script>
+      import "../scripts/smooth-scroll";
+    </script>
+    <script>
+      (function () {
+        if (!("IntersectionObserver" in window)) return;
+        type TW = typeof window & {
+          gtag?: (...a: unknown[]) => void;
+          floodlight?: { trackClick(el: string): void };
+        };
+        const tw = window as TW;
+
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) return;
+              const sectionName =
+                (entry.target as HTMLElement).dataset.section ?? "";
+              if (!sectionName) return;
+              observer.unobserve(entry.target);
+              tw.gtag?.("event", "section_view", {
+                send_to: "G-VDKT3GY3Z3",
+                section_name: sectionName,
+              });
+              tw.floodlight?.trackClick(`section_view_${sectionName}`);
+            });
+          },
+          { threshold: 0, rootMargin: "0px 0px -40% 0px" },
+        );
+
+        document
+          .querySelectorAll<HTMLElement>("[data-section]")
+          .forEach((el) => observer.observe(el));
+      })();
+    </script>
+    <script>
+      (function () {
+        type TW = typeof window & {
+          gtag?: (...a: unknown[]) => void;
+          floodlight?: { trackClick(el: string): void };
+        };
+        const tw = window as TW;
+
+        const milestones = [25, 50, 75, 90];
+        const fired = new Set<number>();
+
+        function check() {
+          const total = document.documentElement.scrollHeight - window.innerHeight;
+          if (total <= 0) return;
+          const pct = Math.round((window.scrollY / total) * 100);
+          for (const m of milestones) {
+            if (!fired.has(m) && pct >= m) {
+              fired.add(m);
+              tw.gtag?.("event", "scroll_depth", {
+                send_to: "G-VDKT3GY3Z3",
+                percent_scrolled: m,
+              });
+              tw.floodlight?.trackClick(`scroll_depth_${m}`);
+              if (fired.size === milestones.length) {
+                window.removeEventListener("scroll", check);
+              }
+            }
+          }
+        }
+
+        window.addEventListener("scroll", check, { passive: true });
+      })();
+    </script>
+    <script>
+      import { initCursor } from "../scripts/cursor";
+      const isPointer = document.body.dataset.cursorPointer === "true";
+      initCursor({
+        hoverSelectors: "a, button, .btn, [data-cursor]",
+        ringColor: "var(--color-brand)",
+        dotColor: "var(--color-brand)",
+        blendMode: false,
+        pointer: isPointer,
+      });
+    </script>
+  </body>
+</html>

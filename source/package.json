@@ -1,0 +1,16 @@
+{
+  "name": "thecommunity-porsche-reunions",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "cms"
+  ],
+  "scripts": {
+    "dev": "npm run dev:web",
+    "dev:web": "npm run dev --workspace=frontend",
+    "dev:cms": "npm run dev --workspace=cms",
+    "build": "npm run build --workspaces --if-present",
+    "build:web": "npm run build --workspace=frontend",
+    "build:cms": "npm run build --workspace=cms"
+  }
+}

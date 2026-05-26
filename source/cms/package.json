@@ -1,0 +1,28 @@
+{
+  "name": "cms",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "dotenv -e ../.env -- sanity dev",
+    "build": "dotenv -e ../.env -- sanity build",
+    "deploy": "dotenv -e ../.env -- sanity deploy",
+    "start": "dotenv -e ../.env -- sanity start",
+    "seed": "dotenv -e ../.env -- node scripts/seed-examples.mjs"
+  },
+  "dependencies": {
+    "@sanity/client": "^6.23.4",
+    "@sanity/orderable-document-list": "^1.5.1",
+    "@sanity/vision": "^3.59.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sanity": "^3.59.0",
+    "sanity-plugin-bulk-actions-table": "^1.0.4",
+    "styled-components": "^6.1.15"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "dotenv-cli": "^7.4.2",
+    "typescript": "^5.7.2"
+  }
+}

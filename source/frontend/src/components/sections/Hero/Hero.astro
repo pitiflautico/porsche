@@ -1,0 +1,269 @@
+---
+import "./hero.scss";
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+---
+
+<section id="hero" class="section section--center hero" data-section="hero">
+  <h1 class="title">{title}</h1>
+  <div class="hero__video-container">
+    <div class="hero__video" aria-hidden="true">
+      <video
+        class="video video--desktop"
+        data-src="/videos/hero-16-9"
+        preload="auto"
+        poster="/videos/hero-poster.jpg"></video>
+      <video
+        class="video video--mobile"
+        data-src="/videos/hero-9-16"
+        preload="auto"
+        poster="/videos/hero-poster.jpg"></video>
+    </div>
+  </div>
+</section>
+<script>
+  import gsap from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+  import { createParallaxAnimation } from "../../../utils/parallaxUtils.js";
+  gsap.registerPlugin(ScrollTrigger);
+
+  const isMobile = window.matchMedia("(max-width: 767px)").matches;
+
+  const selector = isMobile ? ".video--mobile" : ".video--desktop";
+  const video = document.querySelector<HTMLVideoElement>(selector);
+  const videoContainer = document.querySelector<HTMLElement>(".hero__video");
+
+  if (video) {
+    const base = video.dataset.src;
+
+    const canPlayWebm = video.canPlayType("video/webm") !== "";
+
+    const source = document.createElement("source");
+    source.src = canPlayWebm ? `${base}.webm` : `${base}.mp4`;
+    source.type = canPlayWebm ? "video/webm" : "video/mp4";
+
+    video.muted = true;
+    video.loop = true;
+    video.autoplay = false;
+    video.playsInline = true;
+    video.preload = "auto";
+
+    video.appendChild(source);
+    video.load();
+
+    const startVideo = () => {
+      const reveal = () => {
+        videoContainer?.classList.add("is-ready");
+      };
+      const onPlaying = () => {
+        if (typeof video.requestVideoFrameCallback === "function") {
+          video.requestVideoFrameCallback(() => reveal());
+        } else {
+          reveal();
+        }
+      };
+      video.addEventListener("playing", onPlaying, { once: true });
+      video.play().catch(() => {
+        video.removeEventListener("playing", onPlaying);
+      });
+    };
+
+    // Start the video immediately — don't wait for the preloader to
+    // finish. The curtains hide it until they open, but we want the
+    // first decoded frames ready BEFORE that, so the reveal lands on
+    // a moving picture, not a poster freeze.
+    startVideo();
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // Hero title reveal (v1 formula): wipes from bottom + y/skew relax
+  // ──────────────────────────────────────────────────────────────────
+  const heroVideoEl = document.querySelector<HTMLElement>(".hero__video");
+  const heroVideoContainer = document.querySelector<HTMLElement>(".hero__video-container");
+  const heroTitleEl = document.querySelector<HTMLElement>("#hero .title");
+  const nextSection = document.querySelector<HTMLElement>("#interlude");
+  const leadEl = document.querySelector<HTMLElement>("#interlude .lead");
+
+  if (heroTitleEl) {
+    gsap.set(heroTitleEl, {
+      opacity: 0,
+      y: 50,
+      skewY: 3,
+      clipPath: "inset(0% 0% 100% 0%)",
+    });
+    const playTitle = () => {
+      gsap.to(heroTitleEl, {
+        opacity: 1,
+        y: 0,
+        skewY: 0,
+        clipPath: "inset(0% 0% 0% 0%)",
+        duration: 1.5,
+        ease: "power3.out",
+        delay: 0.2,
+      });
+    };
+    if (document.querySelector("[data-intro]")) {
+      window.addEventListener("intro:complete", playTitle, { once: true });
+    } else {
+      playTitle();
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // Interlude lead: split into chars for a scroll-driven typing reveal.
+  // Each char fades + slides in sequentially, driven by the same scrub.
+  // ──────────────────────────────────────────────────────────────────
+  type CharSpan = HTMLSpanElement;
+  let leadChars: CharSpan[] = [];
+
+  if (leadEl) {
+    const html = leadEl.innerHTML;
+    const tmp = document.createElement("div");
+    tmp.innerHTML = html;
+
+    // Walk the tree, wrapping every visible character in its own span.
+    function wrapTextNodes(node: Node, out: HTMLElement) {
+      node.childNodes.forEach((child) => {
+        if (child.nodeType === Node.TEXT_NODE) {
+          const text = child.textContent || "";
+          for (const ch of text) {
+            const span = document.createElement("span");
+            span.className = "lead__char";
+            span.textContent = ch === " " ? " " : ch;
+            out.appendChild(span);
+          }
+        } else if (child.nodeType === Node.ELEMENT_NODE) {
+          const el = child as HTMLElement;
+          const clone = document.createElement(el.tagName);
+          for (const attr of Array.from(el.attributes)) {
+            clone.setAttribute(attr.name, attr.value);
+          }
+          out.appendChild(clone);
+          wrapTextNodes(el, clone);
+        }
+      });
+    }
+
+    const replacement = document.createElement("span");
+    replacement.className = "lead__inner";
+    wrapTextNodes(tmp, replacement);
+    leadEl.innerHTML = "";
+    leadEl.appendChild(replacement);
+    leadChars = Array.from(leadEl.querySelectorAll<HTMLSpanElement>(".lead__char"));
+
+    leadChars.forEach((ch) => {
+      ch.style.display = "inline-block";
+      ch.style.willChange = "transform, opacity";
+    });
+    gsap.set(leadChars, { opacity: 0, y: 20 });
+  }
+
+  // (Removed: fixed-position lead overlay clone. The typing now lives
+  // entirely inside Section 2 — see the dedicated ScrollTrigger below.
+  // Having both a clone and the real lead caused a duplicated copy of
+  // the message during the hero→interlude transition.)
+
+  // ──────────────────────────────────────────────────────────────────
+  // Scroll-driven (scrub) transition — the user controls everything with
+  // the wheel/trackpad. The video shrinks + slides out the top, the
+  // overlay text types in, all tied to scroll position. A snap pins the
+  // user to the interlude center (or back to hero top) when they stop
+  // scrolling in the middle. Scrolling back up reverses every step.
+  // ──────────────────────────────────────────────────────────────────
+  function initScrubTransition() {
+    if (!heroVideoEl || !heroVideoContainer || !nextSection) return;
+
+    gsap.set(heroVideoEl, { clipPath: "inset(0% 0% 0% 0%)" });
+
+    const tl = gsap.timeline({
+      defaults: { ease: "none" },
+      scrollTrigger: {
+        trigger: "#hero",
+        start: "top top",
+        // Roughly double the previous scroll distance so the shrink/lift
+        // reads as a deliberate transition, not a sudden flick.
+        end: "+=200%",
+        pin: ".hero__video-container",
+        // pinSpacing TRUE so the scrub creates real physical scroll
+        // space — the user can't reach Interlude/Section 3 until the
+        // typing animation is complete, and Interlude/Section 2 lands
+        // at 100% viewport with no overlap into Section 3.
+        pinSpacing: true,
+        scrub: 1,
+        invalidateOnRefresh: true,
+        // Snap to the two stable points so the user can't park halfway
+        // through the transition — it always settles at start (hero) or
+        // end (interlude lead centered).
+        snap: {
+          snapTo: [0, 1],
+          duration: { min: 0.3, max: 0.7 },
+          ease: "power2.out",
+          delay: 0.12,
+        },
+      },
+    });
+
+    // Phase 1 (0 → 0.55): video shrinks (sides + bottom, top anchored).
+    tl.to(
+      heroVideoEl,
+      { clipPath: "inset(0% 25% 50% 25%)", duration: 0.45 },
+      0,
+    );
+
+    // Phase 1b (0.25 → 0.7): video lifts up and exits through the top edge.
+    tl.to(
+      heroVideoContainer,
+      { yPercent: -110, duration: 0.55 },
+      0.2,
+    );
+    // Hide once gone (so later layout can't catch it).
+    tl.set(heroVideoContainer, { autoAlpha: 0 }, 0.75);
+
+    // Hero title fades + lifts during the shrink.
+    if (heroTitleEl) {
+      tl.to(heroTitleEl, { opacity: 0, y: -50, duration: 0.45 }, 0);
+    }
+
+    // (Typing of the lead text has been moved out of this scrub and
+    // into its own ScrollTrigger tied to #interlude — see below. That
+    // way the typing only ever happens INSIDE Section 2 while it's
+    // pinned at 100% viewport, never during the hero shrink.)
+
+    // Pin Interlude (Section 2) at 100% viewport while the lead text
+    // types in, scroll-driven. The user scrolls, the chars build; the
+    // section never overlaps with Section 3 because the pin holds the
+    // viewport fully on Interlude until the typing is finished.
+    if (leadChars.length) {
+      const typeTl = gsap.timeline({
+        defaults: { ease: "none" },
+        scrollTrigger: {
+          trigger: "#interlude",
+          start: "top top",
+          // Enough scroll for the typing to feel deliberate; the pin
+          // also gives a beat of "finished sentence" before releasing.
+          end: "+=120%",
+          pin: true,
+          pinSpacing: true,
+          scrub: 1,
+          invalidateOnRefresh: true,
+        },
+      });
+      const stagger = 0.75 / leadChars.length;
+      // Typing fills ~75% of the pinned scroll so there's a small "hold"
+      // window at the end with the full sentence visible before Section 3.
+      typeTl.to(leadChars, { opacity: 1, y: 0, duration: 0.08, stagger }, 0);
+    }
+
+    ScrollTrigger.refresh();
+  }
+
+  if (heroVideoEl && heroVideoContainer && nextSection) {
+    if (document.readyState === "complete") {
+      initScrubTransition();
+    } else {
+      window.addEventListener("load", initScrubTransition, { once: true });
+    }
+  }
+</script>

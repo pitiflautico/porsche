@@ -1,0 +1,62 @@
+---
+import "./logo-block.scss";
+
+interface Props {
+  text: string;
+}
+const { text } = Astro.props;
+---
+
+<div class="logo-block">
+  <img
+    src="/images/logo-porsche.svg"
+    alt="Porsche Reunion"
+    class="logo-block__logo"
+  />
+  <p class="logo-block__text">{text}</p>
+</div>
+
+<script>
+  import gsap from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+  import { animateTextRandomBlur } from "../../scripts/gsap-text-random-blur";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  function initLogoBlockAnimation() {
+    const block = document.querySelector<HTMLElement>(".logo-block");
+    if (!block) return;
+
+    const logo = block.querySelector<HTMLElement>(".logo-block__logo");
+    const text = block.querySelector<HTMLElement>(".logo-block__text");
+    if (!logo || !text) return;
+
+    gsap.set(logo, { opacity: 0, scale: 0.95 });
+    gsap.set(text, { opacity: 0 });
+
+    ScrollTrigger.create({
+      trigger: block,
+      start: "top 88%",
+      // once: true,
+      onEnter: () => {
+        gsap.to(logo, {
+          opacity: 1,
+          scale: 1,
+          duration: 0.9,
+          ease: "power2.out",
+        });
+
+        gsap.delayedCall(0.2, () => {
+          animateTextRandomBlur(text, { yOffset: 30, blur: 6 });
+          gsap.set(text, { opacity: 1 });
+        });
+      },
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initLogoBlockAnimation);
+  } else {
+    initLogoBlockAnimation();
+  }
+</script>

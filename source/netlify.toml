@@ -1,0 +1,17 @@
+# Monorepo: build desde raíz, publicar el output del frontend
+# Env vars: PUBLIC_SANITY_PROJECT_ID y PUBLIC_SANITY_DATASET (build + SSR galería). Ver docs/NETLIFY_ENV.md
+[build]
+  command = "npm run build --workspace=frontend"
+  publish = "frontend/dist"
+
+# Hard block: this repo must never accept submissions.
+[[redirects]]
+  from = "/api/submit"
+  to = "/"
+  status = 410
+
+# i18n: redirigir raíz a idioma por defecto
+# [[redirects]]
+#   from = "/"
+#   to = "/es/"
+#   status = 302

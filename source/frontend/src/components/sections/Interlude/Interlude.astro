@@ -1,0 +1,14 @@
+---
+import "./interlude.scss";
+
+interface Props {
+  subtitle: string;
+}
+const { subtitle } = Astro.props;
+---
+
+<section id="interlude" class="section section--center interlude">
+  <div class="container">
+    <h2 class="lead" set:html={subtitle} />
+  </div>
+</section>

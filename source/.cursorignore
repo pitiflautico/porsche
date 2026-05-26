@@ -1,0 +1,58 @@
+# Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+.build
+.output
+.vercel
+.netlify
+
+# Astro
+.astro
+
+# Cache
+.cache
+.parcel-cache
+.next
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+.vscode/*
+!.vscode/settings.json
+
+# Env files
+.env
+.env.* 
+
+# Static heavy assets
+frontend/public/hero
+frontend/public/audios
+
+# CMS / Sanity builds
+.sanity
+sanity/node_modules
+
+# Misc
+tmp
+temp
+
+# Docs
+docs/DATASETS_AND_SCHEMAS.md
+docs/PORSCHE_REUNIONS_MASTER_TECHNICAL_SPEC.md
+docs/PORSCHE_REUNIONS_SPRINT_PLAN_MVP.md 
+docs/NETLIFY_ENV.md
+docs/AI_GUARDRAILS_FULL.md
+docs/animation-reference/*
+
+# Frontend reports
+frontend/docs/reports
+frontend/docs/reports/*
+

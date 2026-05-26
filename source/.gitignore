@@ -1,0 +1,49 @@
+# Node
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Astro
+.astro/
+dist/
+
+# Next.js (legacy)
+.next/
+out/
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.development
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+
+# Vercel
+.vercel/
+
+# Sanity
+.sanity/ 
+dist/
+
+# Claude
+.claude/
+
+# Docs
+docs/SANITY_SETUP.md
+docs/DELIVERY_LOG.md
+docs/NETLIFY_ENV.md
+docs/FORM_ON_LANDING_GUIDE.md
+docs/FORM_INTERACTIVE_AND_TRACKING.md
+
+# Frontend Docs
+frontend/src/_references/*
+frontend/src/_assets/*
+frontend/docs/*

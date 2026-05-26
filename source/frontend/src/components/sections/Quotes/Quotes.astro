@@ -1,0 +1,422 @@
+---
+import "./quotes.scss";
+import { t, type Locale } from "../../../i18n/utils";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const country2 = t(locale, "quotes.2.country");
+const country3 = t(locale, "quotes.3.country");
+const country4 = t(locale, "quotes.4.country");
+const country5 = t(locale, "quotes.5.country");
+const country6 = t(locale, "quotes.6.country");
+---
+
+<section
+  id="testimonials"
+  class="section testimonials"
+  data-section="testimonials"
+>
+  <div class="slogan">
+    <div class="slogan__word">
+      <span class="slogan__word-inner">THERE</span>
+    </div>
+    <div class="slogan__word"><span class="slogan__word-inner">IS</span></div>
+    <div class="slogan__word"><span class="slogan__word-inner">NO</span></div>
+    <div class="slogan__word">
+      <span class="slogan__word-inner">SUBSTITUTE</span>
+    </div>
+  </div>
+  <div class="quotes">
+    <!-- Block image 1 -->
+    <div class="quote">
+      <picture class="quote__image quote__image--1">
+        <img
+          src={t(locale, "quotes.1.image")}
+          alt={t(locale, "quotes.1.text")}
+          title={t(locale, "quotes.1.author")}
+        />
+      </picture>
+    </div>
+    <!-- Block image and text 2, 3 -->
+    <div class="quote" id="quote-block-2">
+      <picture class="quote__image quote__image--2">
+        <img
+          src={t(locale, "quotes.2.image")}
+          alt={t(locale, "quotes.2.text")}
+          title={t(locale, "quotes.2.author")}
+        />
+      </picture>
+      <blockquote class="quote__text quote__text--2">
+        <p>{t(locale, "quotes.2.text")}</p>
+        <cite class="quote__author"
+          >&mdash; {t(locale, "quotes.2.author")}{
+            country2 && (
+              <>,<span class="quote__country"> {country2}</span></>
+            )
+          }</cite
+        >
+      </blockquote>
+      <picture class="quote__image quote__image--3">
+        <img
+          src={t(locale, "quotes.3.image")}
+          alt={t(locale, "quotes.3.text")}
+          title={t(locale, "quotes.3.author")}
+        />
+      </picture>
+      <blockquote class="quote__text quote__text--3">
+        <p>{t(locale, "quotes.3.text")}</p>
+        <cite class="quote__author"
+          >&mdash; {t(locale, "quotes.3.author")}{
+            country3 && (
+              <>,<span class="quote__country"> {country3}</span></>
+            )
+          }</cite
+        >
+      </blockquote>
+    </div>
+    <!-- Block image and text 4, 5-->
+    <div class="quote" id="quote-block-3">
+      <picture class="quote__image quote__image--4">
+        <img
+          src={t(locale, "quotes.4.image")}
+          alt={t(locale, "quotes.4.text")}
+          title={t(locale, "quotes.4.author")}
+        />
+      </picture>
+      <blockquote class="quote__text quote__text--4">
+        <p>{t(locale, "quotes.4.text")}</p>
+        <cite class="quote__author"
+          >&mdash; {t(locale, "quotes.4.author")}{
+            country4 && (
+              <>,<span class="quote__country"> {country4}</span></>
+            )
+          }</cite
+        >
+      </blockquote>
+      <picture class="quote__image quote__image--5">
+        <img
+          src={t(locale, "quotes.5.image")}
+          alt={t(locale, "quotes.5.text")}
+          title={t(locale, "quotes.5.author")}
+        />
+      </picture>
+      <blockquote class="quote__text quote__text--5">
+        <p>{t(locale, "quotes.5.text")}</p>
+        <cite class="quote__author"
+          >&mdash; {t(locale, "quotes.5.author")}{
+            country5 && (
+              <>,<span class="quote__country"> {country5}</span></>
+            )
+          }</cite
+        >
+      </blockquote>
+    </div>
+    <!-- Block image and text 6 -->
+    <div class="quote quote--6" id="quote6">
+      <blockquote class="quote__text quote__text--6">
+        <p>{t(locale, "quotes.6.text")}</p>
+        <cite class="quote__author"
+          >&mdash; {t(locale, "quotes.6.author")}{
+            country6 && (
+              <>,<span class="quote__country"> {country6}</span></>
+            )
+          }</cite
+        >
+      </blockquote>
+      <picture class="quote__image quote__image--6">
+        <img
+          src={t(locale, "quotes.6.image")}
+          alt={t(locale, "quotes.6.text")}
+          title={t(locale, "quotes.6.author")}
+        />
+      </picture>
+    </div>
+  </div>
+
+</section>
+
+<script>
+  import {
+    createParallaxAnimation,
+    createElementParallax,
+  } from "../../../utils/parallaxUtils.js";
+  import gsap from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+  import { SplitText } from "gsap/SplitText";
+
+  gsap.registerPlugin(ScrollTrigger, SplitText);
+
+  function initSloganAnimation() {
+    const section = document.getElementById("testimonials");
+    if (!section) return;
+
+    const wordEls = gsap.utils.toArray<HTMLElement>(".slogan__word-inner");
+    if (!wordEls.length) return;
+
+    // Split each word into individual characters
+    const splits = wordEls.map(
+      (el) => new SplitText(el, { type: "chars", charsClass: "slogan__char" }),
+    );
+
+    // Hide all chars below their clip containers
+    splits.forEach((split) => {
+      gsap.set(split.chars, {
+        yPercent: 115,
+        filter: "blur(8px)",
+        opacity: 0,
+      });
+    });
+
+    let currentWord = -1;
+
+    function wordIn(chars: Element[], delay = 0) {
+      gsap.killTweensOf(chars);
+      gsap.fromTo(
+        chars,
+        { yPercent: 115, filter: "blur(8px)", opacity: 0 },
+        {
+          yPercent: 0,
+          filter: "blur(0px)",
+          opacity: 1,
+          duration: 0.8,
+          ease: "power3.out",
+          stagger: 0.055,
+          delay,
+        },
+      );
+    }
+
+    function wordOut(chars: Element[], direction: "up" | "down" = "up") {
+      gsap.killTweensOf(chars);
+      gsap.to(chars, {
+        yPercent: direction === "up" ? -110 : 110,
+        filter: "blur(8px)",
+        duration: 0.5,
+        ease: "power2.in",
+        stagger: { each: 0.04, from: direction === "up" ? "start" : "end" },
+      });
+    }
+
+    const wordContainers =
+      section.querySelectorAll<HTMLElement>(".slogan__word");
+
+    function showWord(index: number, scrollingDown: boolean) {
+      const prev = currentWord;
+      if (prev === index) return;
+      currentWord = index;
+
+      // Solo la palabra activa es visible; el resto oculta para que no se pisen
+      wordContainers.forEach((el, i) => {
+        el.classList.toggle("slogan__word--active", i === index);
+      });
+
+      if (prev >= 0) wordOut(splits[prev].chars, scrollingDown ? "up" : "down");
+      if (index >= 0) wordIn(splits[index].chars, prev >= 0 ? 0.15 : 0);
+    }
+
+    // First word triggers when section enters viewport
+    ScrollTrigger.create({
+      trigger: section,
+      start: "top 85%",
+      onEnter: () => showWord(0, true),
+      onLeaveBack: () => {
+        if (currentWord === 0) {
+          wordOut(splits[0].chars, "down");
+          currentWord = -1;
+          wordContainers.forEach((el) =>
+            el.classList.remove("slogan__word--active"),
+          );
+        }
+      },
+    });
+
+    // Transitions at 25% / 50% / 75% of the 480vh section
+    [
+      { at: "20%", word: 1 }, // "IS"
+      { at: "40%", word: 2 }, // "NO"
+      { at: "70%", word: 3 }, // "SUBSTITUTE"
+    ].forEach(({ at, word }) => {
+      ScrollTrigger.create({
+        trigger: section,
+        start: `${at} top`,
+        onEnter: () => showWord(word, true),
+        onLeaveBack: () => showWord(word - 1, false),
+      });
+    });
+  }
+
+  // Parallax animation for the quotes container
+  createParallaxAnimation("quote6", ".quote--6", 15, "yPercent");
+
+  // Individual blockquote parallax
+  createElementParallax("quote-block-2", ".quote__text--2", {
+    movement: 150,
+    direction: "up",
+  });
+  createElementParallax("quote-block-2", ".quote__text--3", {
+    movement: 150,
+    direction: "up",
+  });
+  createElementParallax("quote-block-3", ".quote__text--4", {
+    movement: 150,
+    direction: "up",
+  });
+  createElementParallax("quote-block-3", ".quote__text--5", {
+    movement: 150,
+    direction: "up",
+  });
+  createElementParallax("quote6", ".quote__text--6", {
+    movement: 150,
+    direction: "up",
+  });
+
+  function initQuoteTextReveals() {
+    // Quote body text — chars cascade up with a micro-rotation
+    const quotePs = gsap.utils.toArray<HTMLElement>(".quote__text > p");
+    quotePs.forEach((el) => {
+      const split = new SplitText(el, {
+        type: "lines,chars",
+        linesClass: "quote-line",
+        charsClass: "quote-char",
+      });
+
+      gsap.set(split.chars, { yPercent: 30, opacity: 0, rotateZ: 6 });
+      gsap.set(el, { filter: "blur(6px)" });
+
+      ScrollTrigger.create({
+        trigger: el,
+        start: "top 88%",
+        once: true,
+        onEnter: () => {
+          gsap.to(split.chars, {
+            yPercent: 0,
+            opacity: 1,
+            rotateZ: 0,
+            duration: 0.75,
+            ease: "power3.out",
+            stagger: 0.018,
+          });
+          gsap.to(el, {
+            filter: "blur(0px)",
+            duration: 0.9,
+            ease: "power2.out",
+          });
+        },
+      });
+    });
+
+    // Author / cite — words slide in horizontally, delayed after the quote text
+    const quoteAuthors = gsap.utils.toArray<HTMLElement>(".quote__author");
+    quoteAuthors.forEach((el) => {
+      const split = new SplitText(el, {
+        type: "words",
+        wordsClass: "quote-author-word",
+      });
+
+      gsap.set(split.words, { xPercent: -30, opacity: 0 });
+
+      ScrollTrigger.create({
+        trigger: el,
+        start: "top 88%",
+        once: true,
+        onEnter: () => {
+          gsap.to(split.words, {
+            xPercent: 0,
+            opacity: 1,
+            duration: 0.85,
+            ease: "power2.out",
+            stagger: 0.1,
+            delay: 0.5,
+          });
+        },
+      });
+    });
+  }
+
+  // Each .quote__image enters like a postcard arriving from a flat plane:
+  // tilted back on the X axis + blurred + slightly smaller, then settles
+  // flush to the camera, sharp and rectangular. Once landed, two parallax
+  // layers run at different speeds:
+  //   - The frame (.quote__image) drifts up at its own speed.
+  //   - The inner photo drifts up at a different (faster) speed.
+  // Each card has its own pair of speeds, so nothing moves in lockstep.
+  function initImageCardEntrance() {
+    const images = gsap.utils.toArray<HTMLElement>(".quote__image");
+
+    // Outer frame speeds (each card on its own "plane"). Indices 1–4
+    // are the overlapping pair blocks (images 2-3 and 4-5) — bumped
+    // up so the cards visibly overlap/slide past each other.
+    const frameSpeeds = [-3, -24, -15, -32, -18, -9];
+    // Inner photo speeds — kept close to the original so the photo
+    // doesn't drift inside its frame (that read "fatal" at higher values).
+    const innerSpeeds = [-9, -16, -11, -20, -13, -15];
+
+    images.forEach((picture, i) => {
+      gsap.set(picture, {
+        rotateX: -55,
+        scale: 0.86,
+        opacity: 0,
+        filter: "blur(10px)",
+        transformPerspective: 1600,
+        transformOrigin: "center 65%",
+      });
+
+      ScrollTrigger.create({
+        trigger: picture,
+        start: "top 92%",
+        once: true,
+        onEnter: () => {
+          gsap.to(picture, {
+            rotateX: 0,
+            scale: 1,
+            opacity: 1,
+            filter: "blur(0px)",
+            duration: 1.8,
+            ease: "power3.out",
+          });
+        },
+      });
+
+      // Outer parallax — the whole card drifts up slowly while scrolling.
+      gsap.to(picture, {
+        yPercent: frameSpeeds[i % frameSpeeds.length],
+        ease: "none",
+        scrollTrigger: {
+          trigger: picture,
+          start: "top bottom",
+          end: "bottom top",
+          scrub: true,
+        },
+      });
+
+      // Inner parallax — the image inside drifts at a different (faster) speed.
+      const img = picture.querySelector<HTMLElement>("img");
+      if (img) {
+        gsap.to(img, {
+          yPercent: innerSpeeds[i % innerSpeeds.length],
+          ease: "none",
+          scrollTrigger: {
+            trigger: picture,
+            start: "top bottom",
+            end: "bottom top",
+            scrub: true,
+          },
+        });
+      }
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
+      initSloganAnimation();
+      initQuoteTextReveals();
+      initImageCardEntrance();
+    });
+  } else {
+    initSloganAnimation();
+    initQuoteTextReveals();
+    initImageCardEntrance();
+  }
+</script>

@@ -1,0 +1,278 @@
+---
+import "./gallery.scss";
+import { sanity } from "../../../lib/sanity";
+import {
+  GALLERY_PHOTOS_QUERY,
+  type GalleryPhoto,
+} from "../../../lib/sanity-queries";
+import type { Locale } from "../../../i18n/utils";
+
+interface Props {
+  locale?: Locale;
+  prevLabel: string;
+  nextLabel: string;
+}
+
+const { locale = "es", prevLabel, nextLabel }: Props = Astro.props;
+
+/** Slides desde Sanity; si no hay cliente o no hay fotos, array vacío. */
+let GalleryItems: Array<{ img: string; description: string; alt: string }> = [];
+
+if (sanity) {
+  const photos: GalleryPhoto[] = await sanity.fetch(GALLERY_PHOTOS_QUERY);
+  const captionKey = locale === "en" ? "caption_en" : "caption";
+
+  GalleryItems = photos
+    .filter((p) => p.imageUrl)
+    .map((p) => {
+      const description =
+        (locale === "en" ? p.caption_en : p.caption) ||
+        p.caption ||
+        p.caption_en ||
+        "";
+      const alt = p.alt?.trim() || description || "Gallery photo";
+
+      return {
+        img: p.imageUrl as string,
+        description,
+        alt,
+      };
+    });
+}
+---
+
+{
+  GalleryItems.length > 0 && (
+    <section
+      id="gallery"
+      class="section section-gallery"
+      data-section="gallery"
+    >
+      {/* <!-- Slider --> */}
+      <div class="slider-gallery">
+        <div class="gallery-grid">
+          {/* <!-- Slides are now generated from the data array --> */}
+          {GalleryItems.map((item) => (
+            <div class="gallery-feature">
+              <div class="section-container feature-content">
+                <p class="section-description">{item.description}</p>
+              </div>
+              <div class="feature-image">
+                <div class="image-placeholder">
+                  <img src={`${item.img}`} alt={item.alt} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <button
+        class="modal-nav prev button--circle"
+        type="button"
+        aria-label={prevLabel}
+        data-slider="button-prev"
+      >
+        <span>
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M15 18L9 12L15 6"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </span>
+      </button>
+      <button
+        class="modal-nav next button--circle"
+        type="button"
+        aria-label={nextLabel}
+        data-slider="button-next"
+      >
+        <span>
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M9 18L15 12L9 6"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </span>
+      </button>
+    </section>
+  )
+}
+
+<script>
+  import gsap from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+  import { createElementParallax } from "../../../utils/parallaxUtils.js";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  type GallTW = typeof window & {
+    gtag?: (...a: unknown[]) => void;
+    floodlight?: { trackClick(el: string): void };
+  };
+
+  function initGallery() {
+    const section = document.querySelector<HTMLElement>("#gallery");
+    if (!section) return;
+
+    const slides = gsap.utils.toArray<HTMLElement>(
+      section.querySelectorAll(".gallery-feature"),
+    );
+    const allTexts = gsap.utils.toArray<HTMLElement>(
+      section.querySelectorAll(".gallery-feature p"),
+    );
+    if (!slides.length) return;
+
+    // Initial state: only the first slide is visible.
+    let currentIdx = 0;
+    let isAnimating = false;
+    slides.forEach((s, i) => {
+      s.classList.toggle("is-active", i === 0);
+      // Make sure each slide starts at scaleX 1 with origin centered.
+      gsap.set(s, {
+        scaleX: i === 0 ? 1 : 0,
+        transformOrigin: "center center",
+      });
+    });
+    // Show only the first slide's description.
+    gsap.set(allTexts, { visibility: "hidden" });
+    const firstDesc = slides[0].querySelector<HTMLElement>("p");
+    if (firstDesc) gsap.set(firstDesc, { visibility: "visible" });
+
+    function goToSlide(newIdx: number, direction: "next" | "prev") {
+      if (isAnimating) return;
+      newIdx = ((newIdx % slides.length) + slides.length) % slides.length;
+      if (newIdx === currentIdx) return;
+
+      isAnimating = true;
+      const outgoing = slides[currentIdx];
+      const incoming = slides[newIdx];
+
+      // Direction defines which edges the slides collapse from / expand toward.
+      // next  → outgoing shrinks toward LEFT, incoming grows from RIGHT
+      // prev  → outgoing shrinks toward RIGHT, incoming grows from LEFT
+      const outgoingOrigin = direction === "next" ? "left center" : "right center";
+      const incomingOrigin = direction === "next" ? "right center" : "left center";
+
+      // Prepare incoming: visible behind/over outgoing, scaleX 0, anchored
+      // to the opposite edge so it expands "from the other side".
+      incoming.classList.add("is-active");
+      outgoing.classList.remove("is-active");
+      outgoing.classList.add("is-previous");
+      gsap.set(incoming, {
+        scaleX: 0,
+        transformOrigin: incomingOrigin,
+      });
+      gsap.set(outgoing, {
+        transformOrigin: outgoingOrigin,
+      });
+
+      // Toggle descriptions.
+      gsap.set(allTexts, { visibility: "hidden" });
+      const desc = incoming.querySelector<HTMLElement>("p");
+      if (desc) gsap.set(desc, { visibility: "visible" });
+
+      const tl = gsap.timeline({
+        onComplete: () => {
+          outgoing.classList.remove("is-previous");
+          gsap.set(outgoing, {
+            scaleX: 0,
+            clearProps: "transformOrigin",
+          });
+          gsap.set(incoming, { clearProps: "transform,transformOrigin" });
+          currentIdx = newIdx;
+          isAnimating = false;
+        },
+      });
+
+      // OUTGOING: scaleX 1 → 0 — softer in/out so it doesn't yank.
+      tl.to(
+        outgoing,
+        {
+          scaleX: 0,
+          duration: 0.7,
+          ease: "power2.inOut",
+        },
+        0,
+      );
+
+      // INCOMING: scaleX 0 → 1 with an ELASTIC out — gives a small "wave"
+      // ripple at the end (the slide overshoots, then settles in a couple
+      // of soft oscillations). amplitude 0.8 keeps it subtle; period 0.55
+      // makes the oscillation slow enough to read as a fluid ripple, not
+      // a snap-bounce.
+      tl.fromTo(
+        incoming,
+        { scaleX: 0 },
+        {
+          scaleX: 1,
+          duration: 1.15,
+          ease: "elastic.out(0.8, 0.55)",
+        },
+        0.15, // outgoing has begun collapsing before incoming starts to grow
+      );
+    }
+
+    const gtw = window as GallTW;
+    function gallGA4(direction: string) {
+      gtw.gtag?.("event", "change_slide", {
+        send_to: "G-VDKT3GY3Z3",
+        direction,
+      });
+    }
+    function gallFL(el: string) {
+      gtw.floodlight?.trackClick(el);
+    }
+
+    section.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-slider="button-next"]')) {
+        e.preventDefault();
+        goToSlide(currentIdx + 1, "next");
+        gallGA4("next");
+        gallFL("gallery_slide_next");
+      } else if (target.closest('[data-slider="button-prev"]')) {
+        e.preventDefault();
+        goToSlide(currentIdx - 1, "prev");
+        gallGA4("prev");
+        gallFL("gallery_slide_prev");
+      }
+    });
+  }
+
+  // Astro modules load deferred — DOMContentLoaded may have already fired
+  // by the time we get here. Run immediately if so, otherwise wait.
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initGallery, { once: true });
+  } else {
+    initGallery();
+  }
+
+  createElementParallax("gallery", ".slider-gallery", {
+    movement: 100,
+    direction: "up",
+  });
+  createElementParallax("gallery", "#gallery .feature-content", {
+    movement: 150,
+    direction: "down",
+  });
+</script>

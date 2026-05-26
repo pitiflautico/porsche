@@ -1,0 +1,128 @@
+@use '../../../styles/variables' as *;
+
+body .stry-carousel-layout .stry-pane {
+  padding-block: 0px !important;
+}
+
+// Author
+
+.stry-carousel-layout .stry-popup .stry-hub-meta .stry-details .stry-author span,
+.stry-carousel-layout .stry-item .stry-hub-meta .stry-author span {
+  font-weight: 600 !important;
+  line-height: 1 !important;
+}
+
+.stry-carousel-layout .stry-popup .stry-popup-outer.stry-story-item .stry-body .stry-title,
+body .stry-carousel-layout.stry-earned-media-module .stry-item .stry-hub-title {
+  color: $color-brand !important;
+}
+
+.stry-carousel-layout .stry-popup .stry-popup-outer.stry-story-item .stry-text .stry-hub-meta .stry-meta-row .stry-avatar {
+  display: none !important;
+}
+
+body .stry-carousel-layout .stry-popup .stry-popup-outer.stry-story-item .stry-text .stry-hub-meta .stry-meta-row {
+  margin-top: 32px !important;
+  margin-bottom: 8px;
+}
+
+// Close 
+.stry-carousel-layout .stry-popup .stry-popup-outer.active .stry-popup-top-large {
+  position: fixed;
+}
+
+// Button 
+body div.stry-carousel-layout.stry-earned-media-module .stry-read-more {
+  margin: 0 0 .5rem 1.5rem !important;
+  text-transform: uppercase !important;
+  font-size: $font-size-xs !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.125rem !important;
+  transition: color 0.3s ease !important;
+
+  &:hover {
+    color: $color-brand !important;
+  }
+
+  span {
+    display: none !important;
+  }
+}
+
+// Arrows
+body #stry-hub-carousel-right::after,
+body #stry-hub-carousel-left::after {
+  filter: none !important;
+}
+
+.stry-carousel-layout .stry-hub-carousel-button#stry-hub-carousel-right,
+.stry-carousel-layout .stry-hub-carousel-button#stry-hub-carousel-left {
+  background-color: $color-brand !important;
+  border-radius: 99px !important;
+}
+
+body .stry-carousel-layout.stry-earned-media-module .stry-item .stry-item-inner .stry-text {
+  padding-inline: 1.5rem !important;
+}
+
+body .stry-carousel-layout .stry-hub-carousel-button#stry-hub-carousel-left,
+body .stry-carousel-layout .stry-hub-carousel-button#stry-hub-carousel-right {
+  top: -64px !important;
+}
+
+body .stry-carousel-layout .stry-hub-carousel-button#stry-hub-carousel-left {
+  transform: translateX(-100%);
+  right: 54px !important;
+
+  @media (max-width: ($bp-lg - 1px)) {
+    right: auto !important;
+    left: 50% !important;
+    transform: translateX(-44px);
+  }
+}
+
+body .stry-carousel-layout .stry-hub-carousel-button#stry-hub-carousel-right {
+  transform: translateX(-90%);
+  right: 8px !important;
+
+  @media (max-width: ($bp-lg - 1px)) {
+    right: auto !important;
+    transform: translateX(8px);
+    left: 50% !important;
+  }
+}
+
+
+.stry-carousel-layout .stry-item .stry-media::before,
+.stry-carousel-layout .stry-item .stry-media {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+body .stry-carousel-layout.stry-earned-media-module .stry-item:not(.twitter):not(.twitter-hashtag):not(.twitter-user) .stry-item-inner .stry-text .stry-hub-meta {
+  height: fit-content !important;
+}
+
+// Modal
+body .stry-carousel-layout .stry-popup .stry-popup-outer.stry-story-item .stry-media-carousel-outer .stry-media-carousel .stry-media-carousel-controls .stry-media-carousel-next,
+body .stry-carousel-layout .stry-popup .stry-popup-outer.stry-story-item .stry-media-carousel-outer .stry-media-carousel .stry-media-carousel-controls .stry-media-carousel-prev {
+  background-color: rgba(28, 28, 28, .2) !important;
+  border-radius: 0;
+  height: 32px;
+  width: 32px;
+  border-radius: 4px;
+}
+
+body .stry-carousel-layout .stry-popup .stry-popup-outer.stry-story-item .stry-media-carousel-outer .stry-media-carousel .stry-media-carousel-controls .stry-media-carousel-next {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns%3D%22http%3A//www.w3.org/2000/svg%22 viewBox%3D%220 0 24 24%22 width%3D%22100%25%22 height%3D%22100%25%22%3E%3Cpath fill%3D%22%23000%22 d%3D%22m13.75 6.14 4.52 5.36H4v1h14.27l-4.52 5.36.77.64 5.47-6.5H20l-5.48-6.5z%22/%3E%3C/svg%3E") !important;
+
+  background-size: 24px;
+  background-position: 4px;
+}
+
+body .stry-carousel-layout .stry-popup .stry-popup-outer.stry-story-item .stry-media-carousel-outer .stry-media-carousel .stry-media-carousel-controls .stry-media-carousel-prev {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns%3D%22http%3A//www.w3.org/2000/svg%22 viewBox%3D%220 0 24 24%22 width%3D%22100%25%22 height%3D%22100%25%22%3E%3Cpath fill%3D%22%23000%22 d%3D%22M10.25 17.86 5.73 12.5H20v-1H5.73l4.52-5.36-.77-.64L4.01 12H4l5.48 6.5z%22/%3E%3C/svg%3E") !important;
+
+  background-size: 24px;
+  background-position: 4px;
+}

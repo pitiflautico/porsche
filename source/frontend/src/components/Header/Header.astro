@@ -1,0 +1,274 @@
+---
+import "./header.scss";
+import { localeBase, type Locale } from "../../i18n/utils";
+import CloseButton from "../CloseButton/CloseButton.astro";
+
+interface Props {
+  current?: "home";
+  locale: Locale;
+  base: string;
+  navHome: string;
+  navSubmit: string;
+  navReunions: string;
+  navGallery: string;
+  navStories: string;
+  navMenuLabel: string;
+  navCloseMenuLabel: string;
+  navEmail: string;
+}
+const {
+  current,
+  locale,
+  base,
+  navHome,
+  navSubmit,
+  navReunions,
+  navGallery,
+  navStories,
+  navMenuLabel,
+  navCloseMenuLabel,
+  navEmail,
+} = Astro.props;
+const otherLocale: Locale = locale === "es" ? "en" : "es";
+const otherBase = localeBase(otherLocale);
+---
+
+<header class="nav" role="banner">
+  <div class="blur" aria-hidden="true">
+    <div></div><div></div><div></div><div></div>
+    <div></div><div></div><div></div><div></div>
+  </div>
+  <div class="container nav__inner">
+    <nav class="nav__left" role="navigation">
+      <button
+        type="button"
+        class="nav__menu-btn"
+        id="nav-menu-btn"
+        aria-expanded="false"
+        aria-controls="nav-side-menu"
+        aria-label={navMenuLabel}
+        data-split-hover
+      >
+        {navMenuLabel}
+      </button>
+    </nav>
+    <a href={`${base}/`} class="nav__logo" aria-label={navHome}>
+      <picture>
+        <source
+          srcset="/images/porsche-crest-1x.webp 1x, /images/porsche-crest-2x.webp 2x, /images/porsche-crest-3x.webp 3x"
+          type="image/webp"
+        />
+        <source
+          srcset="/images/porsche-crest-1x.png 1x, /images/porsche-crest-2x.png 2x, /images/porsche-crest-3x.png 3x"
+          type="image/png"
+        />
+        <img
+          src="/images/porsche-crest-2x.png"
+          width="30"
+          height="40"
+          alt="Porsche"
+        />
+      </picture>
+      <img src="/images/logo-porsche.svg" alt="Porsche Reunion" />
+    </a>
+
+    <div class="nav__right">
+      {
+        current !== "home" && (
+          <a href={`${base}/`} class="nav__link nav__link--home">
+            {navHome}
+          </a>
+        )
+      }
+      <button
+        type="button"
+        class="nav__link nav__link--submit"
+        data-open-submit-modal
+        data-split-hover="words"
+      >
+        {navSubmit}
+      </button>
+    </div>
+  </div>
+
+  <div
+    class="nav-side"
+    id="nav-side-menu"
+    role="dialog"
+    aria-modal="true"
+    aria-label={navMenuLabel}
+    aria-hidden="true"
+  >
+    <div class="nav-side__backdrop" id="nav-side-backdrop"></div>
+    <aside class="nav-side__panel">
+      <CloseButton
+        id="nav-side-close"
+        label={navCloseMenuLabel}
+        class="nav-side__close"
+      />
+      <nav class="nav-side__links">
+        <a href={`${base}/#hero`} class="nav-side__link" data-split-hover
+          >{navHome}</a
+        >
+        <a href={`${base}/#reunions`} class="nav-side__link" data-split-hover
+          >{navReunions}</a
+        >
+        <a href={`${base}/#gallery`} class="nav-side__link" data-split-hover
+          >{navGallery}</a
+        >
+        <a href={`${base}/#stories`} class="nav-side__link" data-split-hover
+          >{navStories}</a
+        >
+        <a
+          href="mailto:soporteclientes@porsche.com"
+          class="nav-side__link nav-side__link--minor nav-side__link--email"
+          aria-label="Email"
+          data-label="email"
+        >
+          <span class="nav-side__email-icon" aria-hidden="true">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              ><path
+                fill="currentColor"
+                d="M0 12l11 3.1 7-8.1-8.156 5.672-4.312-1.202 15.362-7.68-3.974 14.57-3.75-3.339-2.17 2.925v-.769l-2-.56v7.383l4.473-6.031 4.527 4.031 6-22z"
+              ></path></svg
+            >
+          </span>
+          <span data-split-hover="words">{navEmail}</span>
+        </a>
+        <a
+          href={`${otherBase}/`}
+          class="nav-side__link nav-side__link--minor nav-side__link--language"
+          hreflang={otherLocale}
+          aria-label="Language"
+          data-split-hover
+        >
+          {otherLocale === "es" ? "ESPAÑOL" : "ENGLISH"}
+        </a>
+      </nav>
+    </aside>
+  </div>
+
+  <script>
+    import "../../scripts/split-hover.ts";
+  </script>
+  <script>
+    (function () {
+      if (!("IntersectionObserver" in window)) return;
+      const hero = document.getElementById("hero");
+      if (!hero) return;
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          document.body.classList.toggle("is-hero-out", !entry.isIntersecting);
+        },
+        { threshold: 0 },
+      );
+      observer.observe(hero);
+    })();
+  </script>
+  <script>
+    (function () {
+      type TW = typeof window & {
+        gtag?: (...a: unknown[]) => void;
+        floodlight?: {
+          trackClick(el: string): void;
+          trackVideo(el: string, m: string): void;
+        };
+      };
+      const tw = window as TW;
+      function ga4(event: string, params: Record<string, string>) {
+        tw.gtag?.("event", event, { send_to: "G-VDKT3GY3Z3", ...params });
+      }
+      function fl(el: string) {
+        tw.floodlight?.trackClick(el);
+      }
+
+      // nav_click — all side-menu links except the language switcher
+      document
+        .querySelectorAll<HTMLElement>(
+          ".nav-side__link:not(.nav-side__link--language)",
+        )
+        .forEach((link) => {
+          link.addEventListener("click", () => {
+            const href = (link as HTMLAnchorElement).href ?? "";
+            const hash = href.includes("#") ? href.split("#")[1] : "";
+            const label = link.dataset.label ?? "";
+            const item = hash || label || "home";
+            const clickEl = `nav_${item}`;
+            ga4("nav_click", { click_element: clickEl });
+            fl(clickEl);
+          });
+        });
+
+      // locale_change — language switcher link
+      const langLink = document.querySelector<HTMLAnchorElement>(
+        ".nav-side__link--language",
+      );
+      if (langLink) {
+        langLink.addEventListener("click", () => {
+          const lang = langLink.getAttribute("hreflang") ?? "en";
+          ga4("locale_change", { language: lang });
+          fl("locale_change");
+        });
+      }
+
+      // open_modal — header submit CTA
+      const submitBtn = document.querySelector<HTMLButtonElement>(
+        ".nav__link--submit",
+      );
+      if (submitBtn) {
+        submitBtn.addEventListener("click", () => {
+          ga4("open_modal", { click_element: "modal_submit_story" });
+          ga4("cta_click", { click_element: "modal_submit_story" });
+          fl("modal_submit_story");
+          fl("cta_click_modal_submit_story");
+        });
+      }
+    })();
+  </script>
+  <script>
+    (function () {
+      const btn = document.getElementById("nav-menu-btn");
+      const menu = document.getElementById("nav-side-menu");
+      const backdrop = document.getElementById("nav-side-backdrop");
+      const closeBtn = document.getElementById("nav-side-close");
+      if (!btn || !menu || !backdrop || !closeBtn) return;
+
+      function getScrollbarWidth() {
+        return window.innerWidth - document.documentElement.clientWidth;
+      }
+
+      const header = document.querySelector<HTMLElement>("header");
+
+      function openMenu() {
+        const scrollbarWidth = getScrollbarWidth();
+        menu.classList.add("is-open");
+        menu.setAttribute("aria-hidden", "false");
+        btn?.setAttribute("aria-expanded", "true");
+        document.body.style.overflow = "hidden";
+        if (scrollbarWidth > 0) {
+          document.body.style.paddingRight = scrollbarWidth + "px";
+          if (header) header.style.paddingRight = scrollbarWidth + "px";
+        }
+      }
+      function closeMenu() {
+        menu.classList.remove("is-open");
+        menu.setAttribute("aria-hidden", "true");
+        btn?.setAttribute("aria-expanded", "false");
+        document.body.style.overflow = "";
+        document.body.style.paddingRight = "";
+        if (header) header.style.paddingRight = "";
+      }
+
+      btn.addEventListener("click", openMenu);
+      closeBtn.addEventListener("click", closeMenu);
+      backdrop.addEventListener("click", closeMenu);
+      menu.querySelectorAll(".nav-side__link").forEach(function (link) {
+        link.addEventListener("click", closeMenu);
+      });
+    })();
+  </script>
+</header>

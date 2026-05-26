@@ -1,0 +1,24 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Gallery from "../components/sections/Gallery/Gallery.astro";
+import { t, type Locale } from "../i18n/utils";
+
+const L: Locale = "es";
+---
+
+<BaseLayout
+  title="Section 6 — Gallery (dev)"
+  description="Aislado para iterar el slider sin preload ni el resto."
+  ogTitle="Section 6 dev"
+  ogDescription="Section 6 dev"
+  locale={L}
+  current="home"
+  pointer={true}
+  noIntro={true}
+>
+  <Gallery
+    locale={L}
+    prevLabel={t(L, "home.galleryPrev")}
+    nextLabel={t(L, "home.galleryNext")}
+  />
+</BaseLayout>

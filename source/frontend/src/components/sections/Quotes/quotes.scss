@@ -1,0 +1,344 @@
+@use '../../../styles/variables' as *;
+
+// Container for the "R" section.
+.testimonials {
+  position: relative;
+  height: 500vh;
+  min-height: 3600px;
+  overflow: clip;
+  // Perspective so child .quote__image rotates in believable 3D.
+  perspective: 1600px;
+
+  @media (max-width: ($bp-sm - 1px)) {
+    height: 400vh;
+  }
+
+  .quotes {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    margin: 0 auto;
+    padding: 0;
+  }
+}
+
+
+// Each quote is a flex container with a text and an image
+.quote {
+  position: relative;
+  min-height: 100vh;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+
+  &__text {
+    position: absolute;
+    z-index: 2;
+    width: 80%;
+
+    p {
+      font-size: clamp(1.125rem, 1.5vw, 1.25rem);
+      line-height: 1.35;
+      font-style: italic;
+      color: $color-brand;
+      margin: 0 0 1.15em;
+    }
+  }
+
+  &__author {
+    display: block;
+    overflow: hidden;
+    font-style: normal;
+    font-weight: 700;
+    font-size: 1;
+    color: $color-brand;
+    // color: $color-light;
+    text-transform: uppercase;
+    letter-spacing: $letter-spacing;
+
+    span {
+      font-size: $font-size-xs;
+      font-weight: 400;
+      color: $color-light;
+    }
+  }
+
+  &__image {
+    position: absolute;
+    overflow: hidden;
+    transform-style: preserve-3d;
+    will-change: transform, opacity, filter;
+
+    @media (min-width: $bp-md) {
+      border-radius: $radius * 2;
+    }
+
+    img {
+      // Slightly larger than the frame so internal parallax drifts can run
+      // without revealing edges.
+      width: 100%;
+      height: 112%;
+      margin-top: -6%;
+      object-fit: cover;
+      will-change: transform;
+    }
+  }
+
+  .quote__image--1 {
+    top: 0;
+    left: 50%;
+    right: 5%;
+    width: 85%;
+    height: auto;
+    aspect-ratio: 3 / 4;
+    transform: translateX(-50%);
+
+    @media (min-width: $bp-md) {
+      width: 75%;
+      aspect-ratio: 16 / 9;
+    }
+  }
+
+  .quote__image--2 {
+    right: 0;
+    top: -20%;
+    width: 30%;
+    max-width: 25vw;
+    aspect-ratio: 2.75 / 4;
+    overflow: hidden;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      top: 25%;
+      width: 60%;
+      max-width: 60vw;
+    }
+  }
+
+  .quote__image--3 {
+    left: 0;
+    top: 20%;
+    width: 48%;
+    height: auto;
+    aspect-ratio: 4/3;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+
+
+    @media (max-width: ($bp-sm - 1px)) {
+      top: -30%;
+      width: 80%;
+    }
+  }
+
+  .quote__image--4 {
+    top: -35%;
+    left: 2.5%;
+    width: 27.5%;
+    height: auto;
+    max-height: unset;
+    aspect-ratio: 3 / 2;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      top: -10%;
+      right: 0;
+      left: 0;
+      bottom: 15%;
+      width: 100%;
+    }
+  }
+
+  .quote__image--5 {
+    right: 0;
+    bottom: 35%;
+    width: 30%;
+    aspect-ratio: 2 / 3;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      right: 0;
+      bottom: 0;
+      width: 70%;
+    }
+  }
+
+  .quote__image--6 {
+    position: absolute;
+    bottom: 0;
+    min-height: auto;
+    flex: none;
+
+
+    @media (max-width: ($bp-sm - 1px)) {
+      bottom: 25%;
+      width: 80%;
+      aspect-ratio: 2.25 / 3;
+
+      img {
+        object-position: right;
+      }
+    }
+  }
+
+  .quote__text--2 {
+    top: 45%;
+    right: 6.5%;
+    max-width: 320px;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      top: 62%;
+      left: 0;
+      right: unset;
+      max-width: unset;
+      text-align: right;
+    }
+  }
+
+  .quote__text--3 {
+    top: 0;
+    left: 0;
+
+    @media (min-width: $bp-md) {
+      top: 0%;
+      left: 10%;
+      max-width: 360px;
+    }
+  }
+
+  .quote__text--4 {
+    top: 15%;
+    left: 10%;
+    max-width: 480px;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      top: 25%;
+      left: 0;
+      right: unset;
+      max-width: unset;
+      text-align: left;
+    }
+  }
+
+  .quote__text--5 {
+    left: 50%;
+    bottom: 40%;
+    text-align: left;
+    max-width: 500px;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      left: 0;
+      bottom: -15%;
+      text-align: right;
+    }
+  }
+
+  .quote__text--6 {
+    top: 20%;
+    left: 10%;
+    max-width: 320px;
+
+    @media (max-width: ($bp-sm - 1px)) {
+      top: unset;
+      bottom: 12%;
+      left: 0;
+      text-align: center;
+    }
+  }
+}
+
+// Container for the words displayed in the background
+.slogan {
+  position: sticky;
+  width: 100%;
+  height: 100vh;
+  top: 0;
+  left: 0;
+  z-index: 10;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+
+  // position: absolute;
+  // height: 320vh;
+  // flex-direction: column;
+  // justify-content: space-between;
+  // padding-block: 50vh;
+
+  pointer-events: none;
+
+  // *** -- Words: "THERE" "IS" "NO" "SUBSTITUTE" each on a different line -- ***
+  &__word {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    color: $color-light;
+    font-weight: 500;
+    font-size: clamp(2rem, 10vw, 8rem);
+    letter-spacing: $letter-spacing * 2;
+
+    // Solo la palabra activa es visible; evita que se pisen las palabras
+    visibility: hidden;
+    pointer-events: none;
+
+    &.slogan__word--active {
+      visibility: visible;
+    }
+  }
+
+  // Clip mask — overflow:hidden clips chars sliding in/out
+  &__word-inner {
+    display: inline-block;
+    overflow: hidden;
+    line-height: 1.1;
+    vertical-align: bottom;
+    white-space: nowrap;
+    /* Evita que los caracteres salten de línea y se pisen */
+  }
+}
+
+// Quote text — line wrapper clips chars sliding up
+.quote-line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.1em; // prevents descenders from clipping
+}
+
+// Individual chars in quote body text
+.quote-char {
+  display: inline-block;
+  will-change: transform, opacity;
+}
+
+// Individual words in author/cite line
+.quote-author-word {
+  display: inline-block;
+  will-change: transform, opacity;
+}
+
+// Individual animated characters — inline-block para que no se solapen
+.slogan__char {
+  display: inline-block;
+  will-change: transform;
+  vertical-align: bottom;
+}
+
+.reunion__slide[data-reunion=colombia] .reunion__snapshots .reunion__snapshot[data-snap="2"] {
+  z-index: 2 !important;
+}

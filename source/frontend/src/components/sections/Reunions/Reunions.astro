@@ -1,0 +1,2911 @@
+---
+import "./reunions.scss";
+import CloseButton from "../../CloseButton/CloseButton.astro";
+import { reunions } from "../../../data/reunions-data";
+import type { Locale } from "../../../i18n/utils";
+
+interface Props {
+  locale: Locale;
+  subtitle: string;
+  title: string;
+  ctaWatch: string;
+  indicatorNav: string;
+  indicatorDot: string;
+  modalLabel: string;
+  closeLabel: string;
+  videoHeading: string;
+  photoAlt: string;
+  chapter: string;
+  chapterShort: string;
+  playAudioLabel: string;
+  clickToPlayLabel: string;
+  personModalDetailLabel: string;
+  /**
+   * When true, persons of the next reunion are hidden until the slide switches,
+   * then enter with stagger. When false (default), they stay fully visible during
+   * the WebGL transition and no stagger/blur runs on switch.
+   */
+  staggerPersonEntrance?: boolean;
+}
+const {
+  locale,
+  subtitle,
+  title,
+  ctaWatch,
+  indicatorNav,
+  indicatorDot,
+  modalLabel,
+  closeLabel,
+  videoHeading,
+  photoAlt,
+  chapter,
+  chapterShort,
+  playAudioLabel,
+  clickToPlayLabel,
+  personModalDetailLabel,
+  staggerPersonEntrance = false,
+} = Astro.props;
+
+const reunionCountry = (country: string, countryEn: string) =>
+  locale === "en" ? countryEn : country;
+const hasTooltipAudio = locale !== "en";
+---
+
+<section
+  id="reunions"
+  class="section reunions"
+  data-section="reunions"
+  data-play-audio-label={playAudioLabel}
+  data-click-to-play-label={clickToPlayLabel}
+  data-person-modal-detail-label={personModalDetailLabel}
+  data-locale={locale}
+  data-stagger-person-entrance={staggerPersonEntrance ? "true" : "false"}
+  style={`--reunion-count: ${reunions.length}`}
+>
+  <div class="reunions__stage">
+    <!-- WebGL canvas: handles images + dissolve transitions -->
+    <canvas class="reunions__canvas" aria-hidden="true"></canvas>
+
+    <!-- SVG hitbox overlays (one per reunion, stacked) -->
+    <div class="reunions__hitboxes">
+      {
+        reunions.map((r, i) => (
+          <svg
+            class="reunion__people"
+            data-reunion={r.id}
+            data-reunion-index={String(i)}
+            data-signatures={JSON.stringify(r.signature)}
+            data-modal-photo-by-chapter={JSON.stringify(
+              r.modalPhotoByChapter ?? {},
+            )}
+            data-country={reunionCountry(r.country, r.countryEn)}
+            data-video={locale === "en" ? r.video.en || r.video.es : r.video.es}
+            data-chapter-label={chapter}
+            data-chapter-label-short={chapterShort}
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+            style={i > 0 ? "display:none" : undefined}
+          >
+            {r.people.map((p, pi) => (
+              <g
+                class="reunion__person"
+                data-person-index={String(pi)}
+                data-name={p.name}
+                data-legend={` ${p.legend}`}
+                data-chapter={String(p.chapter)}
+                data-audio={p.audio ?? ""}
+                data-quote={p.quote ?? ""}
+                data-photo={p.photo ?? ""}
+                data-tooltip-side={p.tooltipSide ?? ""}
+                data-tooltip-offset-y={String(p.tooltipOffsetY ?? 0)}
+                data-tooltip-left={
+                  p.tooltipLeft != null ? String(p.tooltipLeft) : ""
+                }
+                data-tooltip-top={
+                  p.tooltipTop != null ? String(p.tooltipTop) : ""
+                }
+                data-signature-max-height={
+                  p.signatureMaxHeight != null
+                    ? String(p.signatureMaxHeight)
+                    : ""
+                }
+                data-cursor={hasTooltipAudio && p.audio ? "play" : "hide"}
+                data-cursor-label={
+                  hasTooltipAudio && p.audio ? clickToPlayLabel : undefined
+                }
+              >
+                <rect x={p.x} y={p.y} width={p.width} height={p.height} />
+              </g>
+            ))}
+          </svg>
+        ))
+      }
+    </div>
+
+    <!-- Text panel -->
+    <div class="reunion">
+      <nav class="reunion__indicator" aria-label={indicatorNav}>
+        {
+          reunions.map((r, i) => (
+            <button
+              class={`reunion__indicator-dot${i === 0 ? " is-active" : ""}`}
+              aria-label={indicatorDot.replace("{n}", String(i + 1))}
+              data-slide-index={String(i)}
+            />
+          ))
+        }
+      </nav>
+      <div class="wrapper">
+        <div class="wrapper__aside">
+          <div class="reunion__data">
+            <h2 class="subtitle" set:html={title} />
+            <h3 class="reunion__location lead">
+              <span class="reunion__location-country"></span>
+            </h3>
+            <div class="reunion__description">
+              <h4 class="reunion__title lead" set:html={subtitle} />
+              <p class="reunion__vin lead">
+                <span class="reunion__vin-number"></span>
+              </p>
+            </div>
+
+            <div class="reunion__chapters">
+              <ul>
+                <!-- Chapters are rendered dynamically by JS -->
+              </ul>
+            </div>
+          </div>
+
+          <div class="ctas">
+            <button
+              type="button"
+              id="reunion-cta"
+              class="btn btn--primary reunion__cta"
+            >
+              <span class="reunion__cta-icon" aria-hidden="true">
+                <svg
+                  width="1.2em"
+                  height="1.2em"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  style="display:block;margin:auto;"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polygon points="10,8 16,12 10,16" fill="currentColor"
+                  ></polygon>
+                </svg>
+              </span>
+              {ctaWatch}
+            </button>
+          </div>
+        </div>
+        <div class="wrapper__main"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Tooltips are created dynamically by JS (pool) -->
+
+<!-- Video modal -->
+<div
+  id="reunion-modal"
+  class="reunion-modal"
+  aria-hidden="true"
+  role="dialog"
+  aria-modal="true"
+  aria-label={modalLabel}
+>
+  <div class="reunion-modal__backdrop" id="reunion-modal-backdrop"></div>
+  <div class="reunion-modal__container" id="reunion-modal-container">
+    <CloseButton
+      id="reunion-modal-close"
+      label={closeLabel}
+      class="reunion-modal__close"
+    />
+    <div
+      class="reunion-modal__video-wrap"
+      id="reunion-modal-wrap"
+      data-cursor="hide"
+    >
+      <!-- Loading overlay -->
+      <div
+        class="reunion-modal__loader"
+        id="reunion-modal-loader"
+        aria-live="polite"
+        aria-label="Loading video"
+      >
+        <svg
+          class="reunion-modal__spinner"
+          viewBox="0 0 50 50"
+          aria-hidden="true"
+        >
+          <circle
+            class="reunion-modal__spinner-track"
+            cx="25"
+            cy="25"
+            r="20"
+            fill="none"
+            stroke-width="2"></circle>
+          <circle
+            class="reunion-modal__spinner-fill"
+            cx="25"
+            cy="25"
+            r="20"
+            fill="none"
+            stroke-width="2"></circle>
+        </svg>
+      </div>
+
+      <!-- YouTube IFrame API mounts here -->
+      <div id="reunion-yt-player" class="reunion-modal__player"></div>
+
+      <!-- Pause info overlay -->
+      <div class="reunion-modal__info" id="reunion-modal-info">
+        <p
+          class="reunion-modal__info-heading"
+          id="reunion-modal-info-heading"
+          data-label={videoHeading}
+        >
+        </p>
+        <p class="reunion-modal__info-detail" id="reunion-modal-info-detail">
+        </p>
+      </div>
+
+      <!-- Custom controls overlay -->
+      <div
+        class="reunion-modal__controls"
+        id="reunion-modal-controls"
+        aria-label="Video controls"
+      >
+        <div
+          class="reunion-modal__progress-track"
+          id="reunion-progress-track"
+          role="slider"
+          aria-label="Video progress"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+          tabindex="0"
+        >
+          <div class="reunion-modal__progress-fill" id="reunion-progress-fill">
+          </div>
+          <div
+            class="reunion-modal__progress-thumb"
+            id="reunion-progress-thumb"
+          >
+          </div>
+        </div>
+        <div class="reunion-modal__ctrl-bar">
+          <div class="reunion-modal__ctrl-left">
+            <!-- Play / Pause -->
+            <button
+              class="reunion-modal__btn reunion-modal__btn--play"
+              id="reunion-btn-play"
+              aria-label="Play"
+              type="button"
+            >
+              <svg
+                class="reunion-modal__icon reunion-modal__icon--play"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+                ><polygon points="8,5 19,12 8,19"></polygon></svg
+              >
+              <svg
+                class="reunion-modal__icon reunion-modal__icon--pause"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+                ><rect x="6" y="4" width="4" height="16"></rect><rect
+                  x="14"
+                  y="4"
+                  width="4"
+                  height="16"></rect></svg
+              >
+            </button>
+            <!-- Mute + Volume slider -->
+            <div class="reunion-modal__vol-group">
+              <button
+                class="reunion-modal__btn reunion-modal__btn--mute"
+                id="reunion-btn-mute"
+                aria-label="Mute"
+                type="button"
+              >
+                <svg
+                  class="reunion-modal__icon reunion-modal__icon--vol"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                  ><path d="M11 5 6 9H2v6h4l5 4V5z"></path><path
+                    d="M15.54 8.46a5 5 0 0 1 0 7.07"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"></path></svg
+                >
+                <svg
+                  class="reunion-modal__icon reunion-modal__icon--muted"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                  ><path d="M11 5 6 9H2v6h4l5 4V5z"></path><line
+                    x1="23"
+                    y1="9"
+                    x2="17"
+                    y2="15"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"></line><line
+                    x1="17"
+                    y1="9"
+                    x2="23"
+                    y2="15"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"></line></svg
+                >
+              </button>
+              <input
+                type="range"
+                class="reunion-modal__vol-range"
+                id="reunion-vol-range"
+                min="0"
+                max="100"
+                value="100"
+                aria-label="Volume"
+              />
+            </div>
+            <!-- Time display -->
+            <span class="reunion-modal__time" id="reunion-time" aria-live="off"
+              >0:00 / 0:00</span
+            >
+          </div>
+          <div class="reunion-modal__ctrl-right"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Person modal (mobile): tap chapter or silhouette opens this -->
+<div
+  id="reunion-person-modal"
+  class="reunion-person-modal"
+  aria-hidden="true"
+  role="dialog"
+  aria-modal="true"
+  aria-label=""
+>
+  <CloseButton
+    id="reunion-person-modal-close"
+    label={closeLabel}
+    class="reunion-person-modal__close"
+  />
+  <div
+    class="reunion-person-modal__backdrop"
+    id="reunion-person-modal-backdrop"
+  >
+  </div>
+  <div
+    class="reunion-person-modal__container"
+    id="reunion-person-modal-container"
+  >
+    <div class="reunion-person-modal__photo" hidden>
+      <img class="reunion-person-modal__photo-img" src="" alt="" />
+    </div>
+    <div class="reunion-person-modal__content">
+      <blockquote class="reunion-person-modal__quote" hidden></blockquote>
+      <div class="reunion-person-modal__signature-wrap" hidden>
+        <img
+          class="reunion-person-modal__signature reunion-person-modal__signature--1"
+          src=""
+          alt=""
+        />
+        <img
+          class="reunion-person-modal__signature reunion-person-modal__signature--2"
+          src=""
+          alt=""
+          hidden
+        />
+      </div>
+      <p class="reunion-person-modal__name-line">
+        <span class="reunion-person-modal__name"></span>
+      </p>
+      <p class="reunion-person-modal__country"></p>
+      <p class="reunion-person-modal__chapter"></p>
+      <div class="reunion-person-modal__audio" hidden>
+        <div class="reunion__tooltip-player">
+          <button
+            class="reunion__tooltip-playbtn reunion-person-modal__playbtn"
+            type="button"
+            aria-label={playAudioLabel}
+          >
+            <svg
+              class="reunion__tooltip-icon reunion__tooltip-icon--play"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+              ><polygon points="8,5 19,12 8,19"></polygon></svg
+            >
+            <svg
+              class="reunion__tooltip-icon reunion__tooltip-icon--pause"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+              ><rect x="6" y="4" width="4" height="16"></rect><rect
+                x="14"
+                y="4"
+                width="4"
+                height="16"></rect></svg
+            >
+          </button>
+          <svg
+            class="reunion__tooltip-waveform"
+            viewBox="0 0 120 32"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path
+              class="reunion__tooltip-wave reunion__tooltip-wave--main"
+              d="M 0,16 L 120,16"></path>
+            <path
+              class="reunion__tooltip-wave reunion__tooltip-wave--core"
+              d="M 0,16 L 120,16"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import gsap from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+  import {
+    animateTextRandomBlur,
+    animateTextRandomBlurOut,
+  } from "../../../scripts/gsap-text-random-blur";
+  import { reunions as reunionsData } from "../../../data/reunions-data";
+  import {
+    ReunionsCanvas,
+    RippleEffect,
+    ENABLE_REUNIONS_EFFECTS_DEBUG,
+    getScrollState,
+    isReunionsInteractionReady,
+    type ScrollState,
+    type ReunionImageSet,
+  } from "../../../scripts/reunions/webgl-canvas";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  // ── GA4 + Floodlight helpers ───────────────────────────────────────────────
+  type TrackW = typeof window & {
+    gtag?: (...a: unknown[]) => void;
+    floodlight?: {
+      trackClick(el: string): void;
+      trackVideo(el: string, m: string): void;
+    };
+  };
+  const tw = window as TrackW;
+  function ga4(name: string, params: Record<string, string>) {
+    tw.gtag?.("event", name, { send_to: "G-VDKT3GY3Z3", ...params });
+  }
+  const fl = {
+    click: (el: string) => tw.floodlight?.trackClick(el),
+    video: (el: string, m: string) => tw.floodlight?.trackVideo(el, m),
+  };
+  function pId(n: string) {
+    return (
+      n
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_|_$/g, "") || "unknown"
+    );
+  }
+
+  function initReunions() {
+    // Always start from the top — cinematic experiences are sequential.
+    const lenisInit = (window as unknown as Record<string, unknown>).lenis as
+      | { scrollTo: (pos: number, opts?: object) => void }
+      | undefined;
+    if (lenisInit) {
+      lenisInit.scrollTo(0, { immediate: true });
+    } else {
+      window.scrollTo(0, 0);
+    }
+
+    const section = document.querySelector<HTMLElement>("#reunions");
+    if (!section) return;
+
+    const isEn = document.documentElement.lang === "en";
+
+    const stage = section.querySelector<HTMLElement>(".reunions__stage");
+    const panel = section.querySelector<HTMLElement>(".reunion");
+    const canvasEl =
+      section.querySelector<HTMLCanvasElement>(".reunions__canvas");
+    const hitboxContainer = section.querySelector<HTMLElement>(
+      ".reunions__hitboxes",
+    );
+    const hitboxSvgs =
+      section.querySelectorAll<SVGSVGElement>(".reunion__people");
+    if (!panel || !canvasEl || !hitboxContainer || !hitboxSvgs.length) return;
+
+    const playLabel = section.dataset.playAudioLabel ?? "Play audio";
+    const clickToPlayLabel =
+      section.dataset.clickToPlayLabel ?? "Click to play";
+    const detailLabel =
+      section.dataset.personModalDetailLabel ?? "Person details";
+
+    // ── WebGL Canvas ──────────────────────────────────────────────────────
+    const ANCHOR_MAP: Record<string, number> = {
+      mexico: 0.8,
+      colombia: 0.75,
+      peru: 0.95,
+    };
+    // Colombia: Federico (3) behind Pablo (2). Peru: person 3 behind person 2.
+    const RENDER_ORDER: Record<string, number[]> = {
+      colombia: [0, 1, 3, 2],
+      peru: [0, 1, 3, 2, 4, 5],
+    };
+    const imageData: ReunionImageSet[] = reunionsData.map((r) => ({
+      bg: window.innerWidth >= 1160 ? r.bgDesktop : r.bg,
+      images: r.images,
+      anchorX: ANCHOR_MAP[r.id] ?? 0.5,
+      renderOrder: RENDER_ORDER[r.id],
+    }));
+
+    let webglCanvas: ReunionsCanvas | null = null;
+    try {
+      webglCanvas = new ReunionsCanvas(
+        canvasEl,
+        imageData,
+        new RippleEffect(),
+        {
+          staggerPersonEntrance:
+            section.dataset.staggerPersonEntrance === "true",
+        },
+      );
+      if (ENABLE_REUNIONS_EFFECTS_DEBUG) webglCanvas.createDebugPanel();
+    } catch {
+      console.warn("WebGL not available, falling back to static display");
+    }
+
+    let currentReunionIndex = 0;
+    const reunionCount = reunionsData.length;
+
+    function getActiveSvg(): SVGSVGElement {
+      return hitboxSvgs[currentReunionIndex] ?? hitboxSvgs[0];
+    }
+
+    /** Match WebGL cover rect to `.reunion__people` (same frame as CSS / hitboxes). */
+    function syncCompositeLayout() {
+      if (!webglCanvas) return;
+      webglCanvas.syncCompositeRectToElement(getActiveSvg());
+    }
+
+    // Only show the first reunion's SVG hitbox initially
+    hitboxSvgs.forEach((svg, i) => {
+      svg.style.display = i === 0 ? "" : "none";
+    });
+
+    syncCompositeLayout();
+    let compositeLayoutRoRaf = 0;
+    if (typeof ResizeObserver !== "undefined" && stage) {
+      const compositeLayoutRo = new ResizeObserver(() => {
+        if (compositeLayoutRoRaf) cancelAnimationFrame(compositeLayoutRoRaf);
+        compositeLayoutRoRaf = requestAnimationFrame(() => {
+          compositeLayoutRoRaf = 0;
+          syncCompositeLayout();
+        });
+      });
+      compositeLayoutRo.observe(stage);
+    }
+
+    let resizeSyncRaf = 0;
+    window.addEventListener("resize", () => {
+      webglCanvas?.resize();
+      if (resizeSyncRaf) cancelAnimationFrame(resizeSyncRaf);
+      resizeSyncRaf = requestAnimationFrame(() => {
+        resizeSyncRaf = 0;
+        syncCompositeLayout();
+      });
+    });
+
+    // ── Modal ──────────────────────────────────────────────────────────────
+    const modal = document.getElementById("reunion-modal")!;
+    const backdrop = document.getElementById("reunion-modal-backdrop")!;
+    const closeBtn = document.getElementById("reunion-modal-close")!;
+    const container = document.getElementById("reunion-modal-container")!;
+    const wrap = document.getElementById("reunion-modal-wrap")!;
+    const loader = document.getElementById("reunion-modal-loader")!;
+    const progressTrack = document.getElementById("reunion-progress-track")!;
+    const progressFill = document.getElementById("reunion-progress-fill")!;
+    const progressThumb = document.getElementById("reunion-progress-thumb")!;
+    const btnPlay = document.getElementById("reunion-btn-play")!;
+    const btnMute = document.getElementById("reunion-btn-mute")!;
+    const volRange = document.getElementById(
+      "reunion-vol-range",
+    ) as HTMLInputElement;
+    const timeEl = document.getElementById("reunion-time")!;
+    const cta = document.getElementById("reunion-cta")!;
+    const infoHeading = document.getElementById("reunion-modal-info-heading")!;
+    const infoDetail = document.getElementById("reunion-modal-info-detail")!;
+
+    // Person modal (mobile only)
+    const personModal = document.getElementById("reunion-person-modal")!;
+    const personModalBackdrop = document.getElementById(
+      "reunion-person-modal-backdrop",
+    )!;
+    const personModalContainer = document.getElementById(
+      "reunion-person-modal-container",
+    )!;
+    const personModalClose = document.getElementById(
+      "reunion-person-modal-close",
+    )!;
+
+    let activeVideoId = hitboxSvgs[0].dataset.video ?? "";
+
+    // Video progress milestone tracking (reset on each video_open)
+    const VIDEO_MILESTONES: Array<[number, string]> = [
+      [0.25, "25%"],
+      [0.5, "50%"],
+      [0.75, "75%"],
+    ];
+    let milestonesFired = new Set<string>();
+
+    type LenisInstance = { stop(): void; start(): void };
+    const lenis = () =>
+      (window as unknown as Record<string, LenisInstance>).lenis as
+        | LenisInstance
+        | undefined;
+
+    let lastModalTrigger: HTMLElement | null = null;
+    let closeTl: gsap.core.Timeline | null = null;
+    let modalGen = 0;
+
+    const mobileQuery = window.matchMedia("(max-width: 1023px)");
+    function isMobile(): boolean {
+      return mobileQuery.matches;
+    }
+
+    let personModalTrigger: HTMLElement | null = null;
+
+    function openPersonModal(
+      personG: SVGGElement,
+      dualWith?: SVGGElement,
+    ) {
+      personModalTrigger = personG as unknown as HTMLElement;
+      const svg = personG.closest<SVGSVGElement>(".reunion__people");
+      const signatures: string[] = JSON.parse(
+        svg?.dataset.signatures ?? "[]",
+      ) as string[];
+
+      const nameOne = personG.dataset.name ?? "";
+      const nameTwo = dualWith?.dataset.name ?? "";
+      const name = dualWith
+        ? `${nameOne} & ${nameTwo}`
+        : nameOne;
+      const quote =
+        (personG.dataset.quote ?? "").trim() ||
+        (dualWith?.dataset.quote ?? "").trim();
+      const audioUrl =
+        personG.dataset.audio ?? dualWith?.dataset.audio ?? "";
+      const chapterNum = parseInt(personG.dataset.chapter ?? "1", 10);
+      const modalPhotoByChapter = JSON.parse(
+        svg?.dataset.modalPhotoByChapter ?? "{}",
+      ) as Record<string, string>;
+      const dualModalPhoto =
+        dualWith && modalPhotoByChapter[String(chapterNum)]
+          ? modalPhotoByChapter[String(chapterNum)]
+          : "";
+      const photoUrl = dualWith
+        ? dualModalPhoto
+        : (personG.dataset.photo ?? "");
+      const personIndex = parseInt(personG.dataset.personIndex ?? "0", 10);
+      const sigUrl = signatures[personIndex] ?? "";
+
+      personModal.setAttribute("aria-label", name || detailLabel);
+      personModal.setAttribute("aria-hidden", "false");
+      personModal.classList.add("is-open");
+
+      const country = svg?.dataset.country ?? "";
+      const chapterLabel = svg?.dataset.chapterLabel ?? "Chapter";
+      const chapterText = `${chapterLabel} ${toRoman(chapterNum)}`;
+
+      const photoWrap = personModal.querySelector<HTMLElement>(
+        ".reunion-person-modal__photo",
+      )!;
+      const photoImg = personModal.querySelector<HTMLImageElement>(
+        ".reunion-person-modal__photo-img",
+      )!;
+      if (photoUrl) {
+        photoWrap.hidden = false;
+        photoImg.src = photoUrl;
+        photoImg.alt = name;
+      } else {
+        photoWrap.hidden = true;
+      }
+
+      const sigWrap = personModal.querySelector<HTMLElement>(
+        ".reunion-person-modal__signature-wrap",
+      )!;
+      const sigImg1 = personModal.querySelector<HTMLImageElement>(
+        ".reunion-person-modal__signature--1",
+      )!;
+      const sigImg2 = personModal.querySelector<HTMLImageElement>(
+        ".reunion-person-modal__signature--2",
+      )!;
+      if (dualWith) {
+        sigWrap.classList.add("reunion-person-modal__signature-wrap--dual");
+        const idx2 = parseInt(dualWith.dataset.personIndex ?? "0", 10);
+        const sigUrl2 = signatures[idx2] ?? "";
+        const showSig = Boolean(sigUrl || sigUrl2);
+        if (showSig) {
+          sigWrap.hidden = false;
+          if (sigUrl) {
+            sigImg1.hidden = false;
+            sigImg1.src = sigUrl;
+            sigImg1.alt = "";
+            const mh = personG.dataset.signatureMaxHeight;
+            sigImg1.style.maxHeight = mh ? `${mh}px` : "";
+          } else {
+            sigImg1.hidden = true;
+            sigImg1.removeAttribute("src");
+          }
+          if (sigUrl2) {
+            sigImg2.hidden = false;
+            sigImg2.src = sigUrl2;
+            sigImg2.alt = "";
+            const mh2 = dualWith.dataset.signatureMaxHeight;
+            sigImg2.style.maxHeight = mh2 ? `${mh2}px` : "";
+          } else {
+            sigImg2.hidden = true;
+            sigImg2.removeAttribute("src");
+          }
+        } else {
+          sigWrap.hidden = true;
+        }
+      } else {
+        sigWrap.classList.remove("reunion-person-modal__signature-wrap--dual");
+        sigImg1.hidden = false;
+        sigImg2.hidden = true;
+        sigImg2.removeAttribute("src");
+        if (sigUrl) {
+          sigWrap.hidden = false;
+          sigImg1.src = sigUrl;
+          sigImg1.alt = "";
+          const sigMaxH = personG.dataset.signatureMaxHeight;
+          sigImg1.style.maxHeight = sigMaxH ? `${sigMaxH}px` : "";
+        } else {
+          sigWrap.hidden = true;
+          sigImg1.removeAttribute("src");
+        }
+      }
+
+      const nameEl = personModal.querySelector<HTMLElement>(
+        ".reunion-person-modal__name",
+      )!;
+      const countryEl = personModal.querySelector<HTMLElement>(
+        ".reunion-person-modal__country",
+      )!;
+      const chapterEl = personModal.querySelector<HTMLElement>(
+        ".reunion-person-modal__chapter",
+      )!;
+      if (dualWith) {
+        nameEl.replaceChildren(
+          document.createTextNode(`${nameOne} &`),
+          document.createElement("br"),
+          document.createTextNode(nameTwo.trim()),
+        );
+      } else {
+        nameEl.textContent = name;
+      }
+      countryEl.textContent = country;
+      countryEl.classList.toggle("is-empty", !country);
+      chapterEl.textContent = chapterText;
+
+      const quoteEl = personModal.querySelector<HTMLElement>(
+        ".reunion-person-modal__quote",
+      )!;
+      if (isEn && quote) {
+        quoteEl.hidden = false;
+        quoteEl.textContent = quote;
+      } else {
+        quoteEl.hidden = true;
+      }
+
+      const audioWrap = personModal.querySelector<HTMLElement>(
+        ".reunion-person-modal__audio",
+      )!;
+      if (!isEn && audioUrl) {
+        audioWrap.hidden = false;
+        const playBtn = audioWrap.querySelector<HTMLElement>(
+          ".reunion-person-modal__playbtn",
+        )!;
+        const newPlayBtn = playBtn.cloneNode(true) as HTMLElement;
+        playBtn.replaceWith(newPlayBtn);
+        newPlayBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const audio = getAudio();
+          if (audioActiveTip === audioWrap && !audio.paused && !audio.ended) {
+            pauseAudio();
+          } else {
+            playAudioInTip(audioUrl, audioWrap);
+            const clickEl = `audio_${pId(name)}`;
+            ga4("person_audio_play", { click_element: clickEl });
+            fl.click(clickEl);
+          }
+        });
+        playAudioInTip(audioUrl, audioWrap);
+      } else {
+        audioWrap.hidden = true;
+      }
+
+      const scrollbarWidth =
+        window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = "hidden";
+      if (scrollbarWidth > 0)
+        document.body.style.paddingRight = scrollbarWidth + "px";
+      lenis()?.stop();
+
+      gsap.set(personModal, { opacity: 1 });
+      gsap.set(personModalBackdrop, { opacity: 0 });
+      gsap.set(personModalContainer, { opacity: 0, y: 24, scale: 0.98 });
+      gsap.to(personModalBackdrop, {
+        opacity: 1,
+        duration: 0.3,
+        ease: "power2.out",
+      });
+      gsap.to(personModalContainer, {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.35,
+        ease: "power2.out",
+        delay: 0.05,
+        onComplete: () => personModalClose.focus(),
+      });
+    }
+
+    function closePersonModal() {
+      const trigger = personModalTrigger;
+      personModalTrigger = null;
+      stopAudio();
+      document.body.style.overflow = "";
+      document.body.style.paddingRight = "";
+      lenis()?.start();
+
+      gsap.to(personModalContainer, {
+        opacity: 0,
+        y: 20,
+        scale: 0.98,
+        duration: 0.25,
+        ease: "power2.in",
+        onComplete: () => {
+          personModal.classList.remove("is-open");
+          personModal.setAttribute("aria-hidden", "true");
+          trigger?.focus();
+          gsap.set(personModal, { opacity: 0 });
+          gsap.set(personModalBackdrop, { opacity: 0 });
+          gsap.set(personModalContainer, { opacity: 0, y: 0, scale: 1 });
+        },
+      });
+      gsap.to(personModalBackdrop, {
+        opacity: 0,
+        duration: 0.22,
+        ease: "power2.in",
+      });
+    }
+
+    personModalBackdrop.addEventListener("click", closePersonModal);
+    personModalClose.addEventListener("click", closePersonModal);
+
+    // ── YouTube IFrame API ─────────────────────────────────────────────────
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    type YTPlayer = any;
+    let ytPlayer: YTPlayer = null;
+    let ytApiReady = false;
+    let pendingVideoId = "";
+
+    // Register global callback before injecting the script tag
+    (window as unknown as Record<string, unknown>).onYouTubeIframeAPIReady =
+      function () {
+        ytApiReady = true;
+        if (pendingVideoId) {
+          createYTPlayer(pendingVideoId);
+          pendingVideoId = "";
+        }
+      };
+
+    // Inject the API script only once
+    if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      const ytScript = document.createElement("script");
+      ytScript.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(ytScript);
+    } else if ((window as unknown as Record<string, unknown>).YT) {
+      ytApiReady = true;
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function formatTime(s: number): string {
+      if (!isFinite(s) || s < 0) return "0:00";
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return `${m}:${sec.toString().padStart(2, "0")}`;
+    }
+
+    // ── Progress RAF loop ──────────────────────────────────────────────────
+    let rafId = 0;
+
+    function startProgressLoop() {
+      cancelAnimationFrame(rafId);
+      function tick() {
+        if (!ytPlayer) return;
+        const current: number = ytPlayer.getCurrentTime?.() ?? 0;
+        const duration: number = ytPlayer.getDuration?.() ?? 0;
+        const ratio = duration > 0 ? current / duration : 0;
+        progressFill.style.transform = `scaleX(${ratio})`;
+        progressThumb.style.left = `${ratio * 100}%`;
+        progressTrack.setAttribute(
+          "aria-valuenow",
+          String(Math.round(ratio * 100)),
+        );
+        timeEl.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
+
+        // video_progress milestones (25 / 50 / 75)
+        if (duration > 0) {
+          VIDEO_MILESTONES.forEach(([threshold, label]) => {
+            if (ratio >= threshold && !milestonesFired.has(label)) {
+              milestonesFired.add(label);
+              ga4("video_progress", {
+                click_element: "video_reunions",
+                video_milestone: label,
+              });
+              fl.video("video_reunions", label);
+            }
+          });
+        }
+
+        rafId = requestAnimationFrame(tick);
+      }
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function stopProgressLoop() {
+      cancelAnimationFrame(rafId);
+    }
+
+    // ── Controls auto-hide ─────────────────────────────────────────────────
+    let controlsTimer = 0;
+
+    function showControls() {
+      wrap.classList.add("is-controls-visible");
+      clearTimeout(controlsTimer);
+      controlsTimer = window.setTimeout(hideControls, 2000);
+    }
+
+    function hideControls() {
+      if (wrap.classList.contains("is-paused")) return;
+      wrap.classList.remove("is-controls-visible");
+    }
+
+    wrap.addEventListener("mousemove", showControls);
+    wrap.addEventListener("mouseleave", hideControls);
+
+    // ── Player state UI sync ───────────────────────────────────────────────
+    function updatePlayBtn(playing: boolean) {
+      btnPlay.classList.toggle("is-playing", playing);
+      btnPlay.setAttribute("aria-label", playing ? "Pause" : "Play");
+    }
+
+    function updateMuteBtn(muted: boolean) {
+      btnMute.classList.toggle("is-muted", muted);
+      btnMute.setAttribute("aria-label", muted ? "Unmute" : "Mute");
+    }
+
+    // ── YouTube player creation ────────────────────────────────────────────
+    function createYTPlayer(videoId: string) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const YT = (window as any).YT;
+      ytPlayer = new YT.Player("reunion-yt-player", {
+        videoId,
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          rel: 0,
+          modestbranding: 1,
+          showinfo: 0,
+          iv_load_policy: 3,
+          fs: 0,
+          disablekb: 0,
+          playsinline: 1,
+          origin: window.location.origin,
+        },
+        events: {
+          onReady: () => {
+            loader.classList.add("is-hidden");
+            ytPlayer.playVideo();
+            startProgressLoop();
+            updatePlayBtn(true);
+            showControls();
+          },
+          onStateChange: (e: { data: number }) => {
+            // PlayerState: UNSTARTED=-1, ENDED=0, PLAYING=1, PAUSED=2, BUFFERING=3, CUED=5
+            if (e.data === 1) {
+              loader.classList.add("is-hidden");
+              wrap.classList.remove("is-paused");
+              startProgressLoop();
+              updatePlayBtn(true);
+            } else if (e.data === 2) {
+              stopProgressLoop();
+              wrap.classList.add("is-paused");
+              updatePlayBtn(false);
+              // Show controls and keep them pinned — no auto-hide while paused
+              showControls();
+              clearTimeout(controlsTimer);
+            } else if (e.data === 3) {
+              wrap.classList.remove("is-paused");
+              loader.classList.remove("is-hidden");
+            } else if (e.data === 0) {
+              stopProgressLoop();
+              wrap.classList.add("is-paused");
+              updatePlayBtn(false);
+              progressFill.style.transform = "scaleX(1)";
+              showControls();
+              // video_progress — complete
+              if (!milestonesFired.has("complete")) {
+                milestonesFired.add("complete");
+                ga4("video_progress", {
+                  click_element: "video_reunions",
+                  video_milestone: "complete",
+                });
+                fl.video("video_reunions", "complete");
+              }
+            }
+          },
+        },
+      });
+    }
+
+    // ── Control interactions ───────────────────────────────────────────────
+    // Play / Pause button
+    btnPlay.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!ytPlayer) return;
+      const state: number = ytPlayer.getPlayerState?.() ?? -1;
+      if (state === 1) ytPlayer.pauseVideo();
+      else ytPlayer.playVideo();
+      showControls();
+    });
+
+    // Click anywhere on video (outside controls) = toggle play/pause
+    wrap.addEventListener("click", (e) => {
+      if ((e.target as HTMLElement).closest(".reunion-modal__controls")) return;
+      if (!ytPlayer) return;
+      const state: number = ytPlayer.getPlayerState?.() ?? -1;
+      if (state === 1) ytPlayer.pauseVideo();
+      else ytPlayer.playVideo();
+      showControls();
+    });
+
+    // Mute toggle
+    btnMute.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!ytPlayer) return;
+      if (ytPlayer.isMuted?.()) {
+        ytPlayer.unMute?.();
+        volRange.value = String(ytPlayer.getVolume?.() ?? 100);
+        updateMuteBtn(false);
+      } else {
+        ytPlayer.mute?.();
+        volRange.value = "0";
+        updateMuteBtn(true);
+      }
+    });
+
+    // Volume slider
+    volRange.addEventListener("input", (e) => {
+      e.stopPropagation();
+      if (!ytPlayer) return;
+      const val = parseInt(volRange.value);
+      ytPlayer.setVolume?.(val);
+      if (val === 0) {
+        ytPlayer.mute?.();
+        updateMuteBtn(true);
+      } else {
+        if (ytPlayer.isMuted?.()) ytPlayer.unMute?.();
+        updateMuteBtn(false);
+      }
+    });
+
+    // Progress bar seek
+    progressTrack.addEventListener("click", (e) => {
+      if (!ytPlayer) return;
+      const rect = progressTrack.getBoundingClientRect();
+      const ratio = Math.max(
+        0,
+        Math.min(1, (e.clientX - rect.left) / rect.width),
+      );
+      const duration: number = ytPlayer.getDuration?.() ?? 0;
+      if (duration > 0) ytPlayer.seekTo?.(ratio * duration, true);
+    });
+
+    // ── Open / Close ───────────────────────────────────────────────────────
+    function openModal(videoId: string, triggerEl?: HTMLElement) {
+      // Cancel any in-flight close animation and reset to clean state
+      if (closeTl) {
+        closeTl.kill();
+        closeTl = null;
+        modal.classList.remove("is-open");
+        modal.setAttribute("aria-hidden", "true");
+        gsap.set(modal, { opacity: 0 });
+        document.body.style.overflow = "";
+        document.body.style.paddingRight = "";
+        lenis()?.start();
+      }
+      gsap.killTweensOf([modal, backdrop, container, closeBtn]);
+
+      modalGen++;
+      lastModalTrigger = triggerEl ?? null;
+
+      // video_open
+      milestonesFired.clear();
+      ga4("video_open", { click_element: "video_reunions" });
+      fl.video("video_reunions", "start");
+
+      modal.setAttribute("aria-hidden", "false");
+      modal.classList.add("is-open");
+
+      const scrollbarWidth =
+        window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = "hidden";
+      if (scrollbarWidth > 0)
+        document.body.style.paddingRight = scrollbarWidth + "px";
+      lenis()?.stop();
+
+      // Reset UI state
+      loader.classList.remove("is-hidden");
+      wrap.classList.remove("is-paused");
+      progressFill.style.transform = "scaleX(0)";
+      progressThumb.style.left = "0%";
+      timeEl.textContent = "0:00 / 0:00";
+
+      // Populate pause info from active reunion data
+      const activeSvg = getActiveSvg();
+      const label = infoHeading.dataset.label ?? "";
+      const country = activeSvg.dataset.country ?? "";
+      infoHeading.innerHTML = `<span class="reunion-modal__info-country">${country}</span>`;
+      infoDetail.innerHTML = label;
+
+      // Cinematic entrance timeline
+      gsap.set(modal, { opacity: 1 });
+      gsap.set(backdrop, { opacity: 0 });
+      gsap.set(container, { opacity: 0, y: 30, scale: 1.02 });
+      gsap.set(closeBtn, { opacity: 0 });
+
+      const tl = gsap.timeline({ onComplete: () => closeBtn.focus() });
+      tl.to(backdrop, { opacity: 1, duration: 0.4, ease: "power2.out" });
+      tl.to(
+        container,
+        { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: "power3.out" },
+        "-=0.25",
+      );
+      tl.to(
+        closeBtn,
+        { opacity: 1, duration: 0.25, ease: "power2.out" },
+        "-=0.3",
+      );
+
+      // Load video via YouTube API
+      if (!ytApiReady) {
+        pendingVideoId = videoId;
+      } else if (!ytPlayer) {
+        createYTPlayer(videoId);
+      } else {
+        loader.classList.remove("is-hidden");
+        ytPlayer.loadVideoById?.(videoId);
+        ytPlayer.playVideo?.();
+        updatePlayBtn(true);
+        updateMuteBtn(false);
+      }
+    }
+
+    function closeModal() {
+      const trigger = lastModalTrigger;
+      lastModalTrigger = null;
+      const gen = modalGen;
+
+      // video_close
+      ga4("video_close", { click_element: "video_reunions" });
+      fl.click("video_reunions_close");
+
+      stopProgressLoop();
+      hideControls();
+
+      closeTl = gsap.timeline({
+        onComplete: () => {
+          // Discard if a new openModal was called while this tween ran
+          if (gen !== modalGen) return;
+          closeTl = null;
+          modal.classList.remove("is-open");
+          modal.setAttribute("aria-hidden", "true");
+          ytPlayer?.pauseVideo?.();
+          document.body.style.overflow = "";
+          document.body.style.paddingRight = "";
+          lenis()?.start();
+          trigger?.focus();
+          gsap.set(modal, { opacity: 0 });
+        },
+      });
+      const tl = closeTl;
+      tl.to(closeBtn, { opacity: 0, duration: 0.15, ease: "power2.in" });
+      tl.to(
+        container,
+        { opacity: 0, y: 20, scale: 0.97, duration: 0.35, ease: "power2.in" },
+        "-=0.08",
+      );
+      tl.to(
+        backdrop,
+        { opacity: 0, duration: 0.28, ease: "power2.in" },
+        "-=0.2",
+      );
+    }
+
+    cta.addEventListener("click", (e) =>
+      openModal(activeVideoId, e.currentTarget as HTMLElement),
+    );
+    backdrop.addEventListener("click", closeModal);
+    closeBtn.addEventListener("click", closeModal);
+    window.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Escape") {
+          if (personModal.classList.contains("is-open")) {
+            e.preventDefault();
+            closePersonModal();
+          } else if (modal.classList.contains("is-open")) {
+            e.preventDefault();
+            closeModal();
+          } else {
+            unlockPersons();
+          }
+        }
+      },
+      true,
+    );
+
+    // ── CTA ────────────────────────────────────────────────────────────────
+    const ctaEl = document.getElementById("reunion-cta")!;
+
+    function showCta() {
+      gsap.killTweensOf(ctaEl);
+      ctaEl.classList.add("is-visible");
+      gsap.to(ctaEl, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" });
+    }
+    function hideCta() {
+      gsap.killTweensOf(ctaEl);
+      ctaEl.classList.remove("is-visible");
+      gsap.to(ctaEl, { opacity: 0, y: 8, duration: 0.25, ease: "power2.in" });
+    }
+
+    // ── Scroll + pinned state ─────────────────────────────────────────────
+    // The sticky stage handles pinning via CSS; we just track when we're in the zone.
+    const sectionST = ScrollTrigger.create({
+      trigger: section,
+      start: "top top",
+      end: "bottom bottom",
+      onEnter: () => section.classList.add("is-pinned"),
+      onEnterBack: () => section.classList.add("is-pinned"),
+      onLeave: () => section.classList.remove("is-pinned"),
+      onLeaveBack: () => section.classList.remove("is-pinned"),
+    });
+
+    function syncPinnedState() {
+      const inZone = sectionST.progress > 0 && sectionST.progress < 1;
+      section.classList.toggle("is-pinned", inZone);
+    }
+
+    syncPinnedState();
+
+    const refreshAndSync = () => {
+      ScrollTrigger.refresh();
+      syncPinnedState();
+      syncCompositeLayout();
+    };
+    window.addEventListener("load", refreshAndSync);
+
+    // ── Unified scroll progress ───────────────────────────────────────────
+    let prevScrollState: ScrollState = {
+      activeReunion: 0,
+      nextReunion: null,
+      dissolveProgress: 0,
+    };
+
+    /** Minimum tail after WebGL + entrance anim are ready (hitboxes / audio). */
+    const SNAPSHOT_READY_DELAY_MS = 800;
+    let latestScrollProgress = 0;
+    let latestScrollState: ScrollState = { ...prevScrollState };
+    let entranceAnimComplete = false;
+    let snapshotReadyDelayId: ReturnType<typeof globalThis.setTimeout> | undefined;
+
+    function cancelSnapshotReadyDelay() {
+      if (snapshotReadyDelayId !== undefined) {
+        clearTimeout(snapshotReadyDelayId);
+        snapshotReadyDelayId = undefined;
+      }
+    }
+
+    function scheduleSnapshotReady() {
+      cancelSnapshotReadyDelay();
+      snapshotReadyDelayId = globalThis.setTimeout(() => {
+        snapshotReadyDelayId = undefined;
+        section.classList.add("is-snapshot-ready");
+      }, SNAPSHOT_READY_DELAY_MS);
+    }
+
+    function syncSnapshotReadyGate() {
+      if (!webglCanvas) return;
+      const canInteract =
+        entranceAnimComplete && isReunionsInteractionReady(latestScrollState);
+      if (!canInteract) {
+        cancelSnapshotReadyDelay();
+        section.classList.remove("is-snapshot-ready");
+        return;
+      }
+      if (section.classList.contains("is-snapshot-ready")) return;
+      if (snapshotReadyDelayId !== undefined) return;
+      scheduleSnapshotReady();
+    }
+
+    // Locked slide transitions: scroll triggers a full dissolve; block wheel/touchmove without lenis.stop()
+    // so overflow stays scrollable and the native scrollbar stays visible (no empty gutter on macOS).
+    // Mobile uses native scroll (no Lenis) — see smooth-scroll.ts.
+    const REUNION_TRANSITION_DURATION = 0.88;
+    let lockedReunionTween: gsap.core.Tween | null = null;
+    let reunionScrollLockRelease: (() => void) | null = null;
+    let settledReunionIndex = 0;
+    let lastReunionProgressSample = 0;
+    /** Dot nav: chain locked WebGL steps until this index (cleared on scroll/touch-driven lock). */
+    let indicatorNavPendingTarget: number | null = null;
+    /**
+     * True while an anchor-link Lenis `scrollTo` (e.g. menu overlay → `#gallery`/`#stories`)
+     * is in flight. We suppress `startLockedReunionTransition` from `reunionsProgressST.onUpdate`
+     * so that Lenis' in-flight animation isn't killed by `killLenisMomentum()` mid-section.
+     * Cleared on `lenis:scrollToComplete`.
+     */
+    let anchorScrollInFlight = false;
+
+    function releaseReunionTransitionScrollLock() {
+      reunionScrollLockRelease?.();
+      reunionScrollLockRelease = null;
+    }
+
+    function isScrollLockEditableTarget(el: EventTarget | null): boolean {
+      if (!el || !(el instanceof HTMLElement)) return false;
+      const t = el.tagName;
+      if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") return true;
+      return Boolean(el.closest("[contenteditable=true]"));
+    }
+
+    function createReunionsScrollLock(): () => void {
+      const opts: AddEventListenerOptions = { capture: true, passive: false };
+      const onWheel = (e: Event) => {
+        e.preventDefault();
+      };
+      const onTouchMove = (e: Event) => {
+        e.preventDefault();
+      };
+      const onKeyDown = (e: Event) => {
+        if (!(e instanceof KeyboardEvent)) return;
+        const k = e.key;
+        const isScrollKey =
+          k === "ArrowDown" ||
+          k === "ArrowUp" ||
+          k === "PageDown" ||
+          k === "PageUp" ||
+          k === "Home" ||
+          k === "End" ||
+          k === " " ||
+          k === "Spacebar";
+        if (!isScrollKey) return;
+        if (isScrollLockEditableTarget(e.target)) return;
+        e.preventDefault();
+      };
+      document.documentElement.addEventListener("wheel", onWheel, opts);
+      document.documentElement.addEventListener("touchmove", onTouchMove, opts);
+      document.documentElement.addEventListener("keydown", onKeyDown, opts);
+      return () => {
+        document.documentElement.removeEventListener("wheel", onWheel, opts);
+        document.documentElement.removeEventListener("touchmove", onTouchMove, opts);
+        document.documentElement.removeEventListener("keydown", onKeyDown, opts);
+      };
+    }
+
+    function killLenisMomentum() {
+      const l = (window as unknown as Record<string, unknown>).lenis as
+        | {
+            scroll?: number;
+            animatedScroll?: number;
+            scrollTo: (n: number, o?: { immediate?: boolean }) => void;
+          }
+        | undefined;
+      if (!l?.scrollTo) return;
+      const y =
+        typeof l.scroll === "number"
+          ? l.scroll
+          : typeof l.animatedScroll === "number"
+            ? l.animatedScroll
+            : undefined;
+      if (typeof y !== "number") return;
+      l.scrollTo(y, { immediate: true });
+    }
+
+    function reunionTransitionZone(): number {
+      return webglCanvas?.transitionZone ?? 0.55;
+    }
+
+    function reunionSettledMidProgress(idx: number): number {
+      const per = 1 / reunionCount;
+      const zone = reunionTransitionZone();
+      const settledEnd = 1 - zone;
+      return idx * per + (settledEnd * 0.5) * per;
+    }
+
+    function scrollYForReunionProgress(sp: number): number {
+      const sectionRect = section.getBoundingClientRect();
+      const sectionTop = window.scrollY + sectionRect.top;
+      const sectionScrollHeight = Math.max(
+        0,
+        section.scrollHeight - window.innerHeight,
+      );
+      return sectionTop + sp * sectionScrollHeight;
+    }
+
+    function snapScrollToReunionAnchor(idx: number) {
+      const targetY = scrollYForReunionProgress(reunionSettledMidProgress(idx));
+      const lenisRef = (window as unknown as Record<string, unknown>).lenis as
+        | { scrollTo: (pos: number, opts?: object) => void }
+        | undefined;
+      if (lenisRef) {
+        lenisRef.scrollTo(targetY, { immediate: true });
+      } else {
+        window.scrollTo(0, targetY);
+      }
+      ScrollTrigger.refresh();
+    }
+
+    function applyReunionsFrame(state: ScrollState, kenScrollProgress: number) {
+      latestScrollProgress = kenScrollProgress;
+      latestScrollState = state;
+      webglCanvas?.setScrollState({
+        ...state,
+        scrollProgress: kenScrollProgress,
+      });
+
+      if (
+        state.nextReunion !== null &&
+        prevScrollState.nextReunion !== state.nextReunion
+      ) {
+        const staggerOn = webglCanvas?.staggerPersonEntrance === true;
+        if (staggerOn) {
+          webglCanvas?.setAllPersonOpacities(state.nextReunion, 0);
+        } else {
+          webglCanvas?.setAllPersonOpacities(state.nextReunion, 1);
+        }
+      }
+
+      const visualReunion = (() => {
+        if (state.nextReunion === null) return state.activeReunion;
+        if (state.dissolveProgress > 0.5) return state.nextReunion;
+        if (state.dissolveProgress < 0.3) return state.activeReunion;
+        return currentReunionIndex;
+      })();
+
+      if (visualReunion !== currentReunionIndex) {
+        switchReunion(visualReunion);
+      }
+
+      if (state.dissolveProgress > 0.05) {
+        hideCta();
+      } else if (section.classList.contains("is-pinned")) {
+        showCta();
+      } else {
+        hideCta();
+      }
+
+      prevScrollState = state;
+      syncSnapshotReadyGate();
+    }
+
+    function startLockedReunionTransition(
+      fromIdx: number,
+      toIdx: number,
+      kenFrozenProgress: number,
+      snapOnComplete: boolean = true,
+    ) {
+      if (lockedReunionTween || !webglCanvas) return;
+
+      releaseReunionTransitionScrollLock();
+      killLenisMomentum();
+      reunionScrollLockRelease = createReunionsScrollLock();
+      section.classList.add("is-reunions-transitioning");
+
+      const proxy = { t: 0 };
+      lockedReunionTween = gsap.to(proxy, {
+        t: 1,
+        duration: REUNION_TRANSITION_DURATION,
+        ease: "power2.inOut",
+        onInterrupt: () => {
+          lockedReunionTween = null;
+          indicatorNavPendingTarget = null;
+          releaseReunionTransitionScrollLock();
+        },
+        onUpdate: () => {
+          applyReunionsFrame(
+            {
+              activeReunion: fromIdx,
+              nextReunion: toIdx,
+              dissolveProgress: proxy.t,
+            },
+            kenFrozenProgress,
+          );
+        },
+        onComplete: () => {
+          lockedReunionTween = null;
+          settledReunionIndex = toIdx;
+          section.classList.remove("is-reunions-transitioning");
+          releaseReunionTransitionScrollLock();
+
+          // Only re-anchor scroll when the transition was initiated by an
+          // explicit navigation (indicator click / touch commit). If it was
+          // triggered by continuous scroll, the user may have already scrolled
+          // past the reunions section while the locked tween was running, and
+          // snapping back would yank them back to the last/first slide.
+          // Additionally guard by checking that we're still within the target
+          // segment and the section is still pinned.
+          const per = 1 / reunionCount;
+          const sp = reunionsProgressST.progress;
+          const segStart = toIdx * per;
+          const segEnd = (toIdx + 1) * per;
+          const stillInsideSegment =
+            sp >= segStart - 1e-6 && sp <= segEnd + 1e-6;
+          const stillPinned = section.classList.contains("is-pinned");
+
+          if (snapOnComplete && stillInsideSegment && stillPinned) {
+            snapScrollToReunionAnchor(toIdx);
+          }
+
+          const sp2 = reunionsProgressST.progress;
+          lastReunionProgressSample = sp2;
+          applyReunionsFrame(
+            {
+              activeReunion: toIdx,
+              nextReunion: null,
+              dissolveProgress: 0,
+            },
+            sp2,
+          );
+          continueIndicatorNavIfNeeded();
+        },
+      });
+    }
+
+    const reunionsProgressST = ScrollTrigger.create({
+      trigger: section,
+      start: "top top",
+      end: "bottom bottom",
+      onUpdate: (self) => {
+        if (lockedReunionTween) return;
+
+        const ideal = getScrollState(self.progress, reunionCount);
+        const prevProg = lastReunionProgressSample;
+        const per = 1 / reunionCount;
+
+        if (!lockedReunionTween && ideal.nextReunion === null) {
+          settledReunionIndex = ideal.activeReunion;
+        }
+
+        const boundaryTop = settledReunionIndex * per;
+        const crossedToLowerSegment =
+          settledReunionIndex > 0 &&
+          prevProg + 1e-12 >= boundaryTop &&
+          self.progress < boundaryTop - 1e-12;
+
+        // Any frame inside the forward transition band starts the locked tween (not only the
+        // first crossing from settled). Skipped ScrollTrigger/Lenis frames used to leave the
+        // dissolve scroll-driven so progress could snap back on touch end.
+        const inForwardTransitionBand =
+          ideal.nextReunion !== null &&
+          ideal.dissolveProgress > 1e-5 &&
+          ideal.activeReunion === settledReunionIndex &&
+          ideal.nextReunion === settledReunionIndex + 1;
+
+        // Suppress locked transitions while an anchor-link Lenis scrollTo is traversing
+        // the section. Otherwise killLenisMomentum() inside startLockedReunionTransition
+        // would kill the in-flight scrollTo and strand the user mid-Reunions.
+        if (anchorScrollInFlight) {
+          applyReunionsFrame(ideal, self.progress);
+          lastReunionProgressSample = self.progress;
+          return;
+        }
+
+        if (crossedToLowerSegment && webglCanvas) {
+          indicatorNavPendingTarget = null;
+          startLockedReunionTransition(
+            settledReunionIndex,
+            settledReunionIndex - 1,
+            self.progress,
+            false,
+          );
+          lastReunionProgressSample = self.progress;
+          return;
+        }
+
+        if (inForwardTransitionBand && webglCanvas) {
+          indicatorNavPendingTarget = null;
+          startLockedReunionTransition(
+            settledReunionIndex,
+            settledReunionIndex + 1,
+            self.progress,
+            false,
+          );
+          lastReunionProgressSample = self.progress;
+          return;
+        }
+
+        applyReunionsFrame(ideal, self.progress);
+        lastReunionProgressSample = self.progress;
+      },
+    });
+
+    {
+      const sp0 = reunionsProgressST.progress;
+      lastReunionProgressSample = sp0;
+      settledReunionIndex = getScrollState(sp0, reunionCount).activeReunion;
+    }
+
+    function continueIndicatorNavIfNeeded() {
+      if (indicatorNavPendingTarget === null || !webglCanvas) return;
+      const target = indicatorNavPendingTarget;
+      if (settledReunionIndex === target) {
+        indicatorNavPendingTarget = null;
+        return;
+      }
+      if (lockedReunionTween) return;
+      const sp = reunionsProgressST.progress;
+      if (settledReunionIndex < target) {
+        startLockedReunionTransition(
+          settledReunionIndex,
+          settledReunionIndex + 1,
+          sp,
+        );
+        lastReunionProgressSample = sp;
+      } else if (settledReunionIndex > target) {
+        startLockedReunionTransition(
+          settledReunionIndex,
+          settledReunionIndex - 1,
+          sp,
+        );
+        lastReunionProgressSample = sp;
+      }
+    }
+
+    function tryTouchCommitForwardReunion() {
+      if (!isMobile() || !webglCanvas || lockedReunionTween) return;
+      if (!section.classList.contains("is-pinned")) return;
+      if (section.classList.contains("is-reunions-transitioning")) return;
+      const sp = reunionsProgressST.progress;
+      const st = getScrollState(sp, reunionCount);
+      const inBand =
+        st.nextReunion !== null &&
+        st.dissolveProgress > 1e-5 &&
+        st.activeReunion === settledReunionIndex &&
+        st.nextReunion === settledReunionIndex + 1;
+      if (!inBand) return;
+      indicatorNavPendingTarget = null;
+      startLockedReunionTransition(settledReunionIndex, settledReunionIndex + 1, sp);
+      lastReunionProgressSample = sp;
+    }
+
+    const onTouchEndMaybeCommitReunion = () => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(tryTouchCommitForwardReunion);
+      });
+    };
+    window.addEventListener("touchend", onTouchEndMaybeCommitReunion, {
+      passive: true,
+      capture: true,
+    });
+
+    function switchReunion(newIndex: number) {
+      const prevIndex = currentReunionIndex;
+      currentReunionIndex = newIndex;
+
+      // Reset previous reunion's person opacities (undo any hover dimming)
+      if (prevIndex !== newIndex) {
+        webglCanvas?.setAllPersonOpacities(prevIndex, 1);
+      }
+
+      // Swap SVG hitboxes
+      hitboxSvgs.forEach((svg, i) => {
+        svg.style.display = i === newIndex ? "" : "none";
+      });
+
+      // Staggered entrance (or instant full opacity when stagger is off).
+      playSnapshotSequence(newIndex);
+
+      // Update active video
+      const svg = hitboxSvgs[newIndex];
+      if (svg?.dataset.video) activeVideoId = svg.dataset.video;
+
+      // Kill any lingering person-opacity tweens from hover/click interactions
+      personOpacityProxies.forEach((p) => gsap.killTweensOf(p));
+      personOpacityProxies.length = 0;
+
+      // Force unlock and reset
+      isLocked = false;
+      lockedPhoto = null;
+      lockedPerson = null;
+      lockedTooltip = null;
+      hideAllTooltips();
+
+      // Update panel data (called last so hideAllTooltips doesn't interfere)
+      updatePanelData(newIndex);
+
+      syncCompositeLayout();
+    }
+
+    // ── Indicator ─────────────────────────────────────────────────────────
+    const indicatorDots = panel.querySelectorAll<HTMLElement>(
+      ".reunion__indicator-dot",
+    );
+
+    function updateIndicator(index: number) {
+      indicatorDots.forEach((dot, i) => {
+        dot.classList.toggle("is-active", i === index);
+      });
+    }
+
+    // Dot click — chain locked WebGL dissolves (same as scroll); instant jump only without WebGL
+    indicatorDots.forEach((dot) => {
+      dot.addEventListener("click", () => {
+        if (section.classList.contains("is-reunions-transitioning")) return;
+        const idx = parseInt(dot.dataset.slideIndex ?? "0", 10);
+        if (idx < 0 || idx >= reunionCount) return;
+        if (idx === settledReunionIndex) return;
+
+        if (!webglCanvas) {
+          const targetScroll = scrollYForReunionProgress(
+            reunionSettledMidProgress(idx),
+          );
+          const lenisRef = (window as unknown as Record<string, unknown>)
+            .lenis as
+            | { scrollTo: (pos: number, opts?: object) => void }
+            | undefined;
+          if (lenisRef) {
+            lenisRef.scrollTo(targetScroll, { immediate: true });
+          } else {
+            window.scrollTo(0, targetScroll);
+          }
+          ScrollTrigger.refresh();
+          return;
+        }
+
+        indicatorNavPendingTarget = idx;
+        continueIndicatorNavIfNeeded();
+      });
+    });
+
+    // ── Dynamic elements ──────────────────────────────────────────────────
+    const elVin = panel.querySelector<HTMLElement>(".reunion__vin-number");
+    const elCountry = panel.querySelector<HTMLElement>(
+      ".reunion__location-country",
+    );
+    const elChaptersList = panel.querySelector<HTMLElement>(
+      ".reunion__chapters ul",
+    );
+    const dataFields = [elVin, elCountry].filter(Boolean) as HTMLElement[];
+
+    function toRoman(n: number): string {
+      const map: [number, string][] = [
+        [10, "X"],
+        [9, "IX"],
+        [5, "V"],
+        [4, "IV"],
+        [1, "I"],
+      ];
+      let s = "";
+      for (const [val, sym] of map) {
+        while (n >= val) {
+          s += sym;
+          n -= val;
+        }
+      }
+      return s;
+    }
+
+    function animateChapters(
+      count: number,
+      chapterLabel: string,
+      chapterShort: string,
+      reunionIndex: number,
+      gen: number,
+    ) {
+      if (!elChaptersList) return;
+      gsap.to(elChaptersList, {
+        opacity: 0,
+        duration: 0.1,
+        ease: "power2.in",
+        onComplete: () => {
+          if (gen !== panelGen) return;
+          elChaptersList.innerHTML = Array.from(
+            { length: count },
+            (_, i) =>
+              `<li data-chapter="${i + 1}"><a tabindex="0"><span class="reunion__chapter-label reunion__chapter-label--full">${chapterLabel}</span> <span class="reunion__chapter-label reunion__chapter-label--short">${chapterShort}</span> ${toRoman(i + 1)}</a></li>`,
+          ).join("");
+          const items = elChaptersList.querySelectorAll<HTMLElement>("li");
+          gsap.set(items, { opacity: 0, y: 6 });
+          gsap.to(items, {
+            opacity: 1,
+            y: 0,
+            duration: 0.2,
+            ease: "power2.out",
+            stagger: 0.04,
+          });
+          gsap.set(elChaptersList, { opacity: 1 });
+
+          const svg = hitboxSvgs[reunionIndex];
+          const persons = svg
+            ? svg.querySelectorAll<SVGGElement>(".reunion__person")
+            : ([] as unknown as NodeListOf<SVGGElement>);
+          items.forEach((item) => {
+            const chapterNum = parseInt(item.dataset.chapter ?? "1");
+            const matchingPersons = Array.from(persons).filter(
+              (g) => parseInt(g.dataset.chapter ?? "0") === chapterNum,
+            );
+            // Play cursor only in ES where audio is enabled.
+            if (!isEn && matchingPersons.some((g) => g.dataset.audio)) {
+              item.dataset.cursor = "play";
+              item.dataset.cursorLabel = clickToPlayLabel;
+            } else {
+              item.dataset.cursor = "hide";
+              delete item.dataset.cursorLabel;
+            }
+            item.addEventListener("mouseenter", () => {
+              if (isMobile()) return;
+              if (isLocked) return;
+              const firstWithAudio =
+                matchingPersons.find((p) => p.dataset.audio) ??
+                matchingPersons[0];
+              activatePersons(
+                matchingPersons,
+                [chapterNum],
+                firstWithAudio,
+                false,
+              );
+            });
+            item.addEventListener("mouseleave", () => {
+              if (isMobile()) return;
+              if (isLocked) return;
+              deactivatePersons();
+            });
+            item.addEventListener("click", (e) => {
+              e.stopPropagation();
+              if (isMobile()) {
+                const first = matchingPersons[0];
+                if (!first) return;
+                const listSvg = first.closest<SVGSVGElement>(".reunion__people");
+                const peruMultiChapter =
+                  listSvg?.dataset.reunion === "peru" &&
+                  matchingPersons.length > 1;
+                if (peruMultiChapter) {
+                  const [a, b] = sortPersonsByPersonIndex(
+                    matchingPersons,
+                    "desc",
+                  );
+                  openPersonModal(a, b);
+                } else {
+                  openPersonModal(first);
+                }
+                return;
+              }
+              if (isLocked && lockedPerson === null) {
+                unlockPersons();
+                return;
+              }
+              isLocked = true;
+              lockedPhoto = hitboxContainer;
+              lockedPerson = null;
+              const firstWithAudio =
+                matchingPersons.find((p) => p.dataset.audio) ??
+                matchingPersons[0];
+              activatePersons(
+                matchingPersons,
+                [chapterNum],
+                firstWithAudio,
+                true,
+              );
+            });
+          });
+        },
+      });
+    }
+
+    let panelGen = 0;
+    let isLocked = false;
+    let lockedPhoto: HTMLElement | null = null;
+    let lockedPerson: SVGGElement | null = null;
+    let lockedTooltip: HTMLElement | null = null;
+    const personOpacityProxies: { val: number }[] = [];
+
+    let panelInitialized = false;
+
+    function updatePanelData(reunionIndex: number) {
+      const gen = ++panelGen;
+
+      gsap.killTweensOf(dataFields);
+      if (elChaptersList) gsap.killTweensOf(elChaptersList);
+
+      const rData = reunionsData[reunionIndex];
+      const svg = hitboxSvgs[reunionIndex];
+      if (!rData || !svg) return;
+
+      const vin = rData.vin;
+      const country = svg.dataset.country ?? "";
+      const chapters = rData.chapters;
+      const chapterLabel = svg.dataset.chapterLabel ?? "Chapter";
+      const chapterShort = svg.dataset.chapterLabelShort ?? "Chap.";
+
+      updateIndicator(reunionIndex);
+
+      if (!panelInitialized) {
+        panelInitialized = true;
+        if (elVin && vin) {
+          elVin.textContent = vin;
+          animateTextRandomBlur(elVin);
+        }
+        if (elCountry && country) {
+          elCountry.textContent = country;
+          gsap.set([elCountry], { opacity: 1, y: 0 });
+        }
+        if (chapters)
+          animateChapters(
+            chapters,
+            chapterLabel,
+            chapterShort,
+            reunionIndex,
+            gen,
+          );
+        return;
+      }
+
+      // VIN — char-by-char blur animation
+      if (elVin && vin) {
+        animateTextRandomBlurOut(elVin, () => {
+          if (gen !== panelGen) return;
+          elVin.textContent = vin;
+          animateTextRandomBlur(elVin);
+        });
+      }
+
+      // Country — simple fade
+      const simpleFields = [elCountry].filter(Boolean) as HTMLElement[];
+      gsap.to(simpleFields, {
+        opacity: 0,
+        y: -6,
+        duration: 0.12,
+        ease: "power2.in",
+        onComplete: () => {
+          if (gen !== panelGen) return;
+          if (elCountry && country) elCountry.textContent = country;
+          gsap.to(simpleFields, {
+            opacity: 1,
+            y: 0,
+            duration: 0.18,
+            ease: "power2.out",
+          });
+        },
+      });
+
+      if (chapters)
+        animateChapters(
+          chapters,
+          chapterLabel,
+          chapterShort,
+          reunionIndex,
+          gen,
+        );
+    }
+
+    // Panel data is initialized at the bottom of initReunions() with the
+    // correct reunion index (handles browser scroll-position restore).
+
+    // ── Audio Player ──────────────────────────────────────────────────────────
+    // Singleton: one <audio> element, one active tooltip at a time.
+    let audioEl: HTMLAudioElement | null = null;
+    let audioActiveTip: HTMLElement | null = null;
+    let waveRaf: number | null = null;
+
+    // Web Audio API analyser (created once, lazily on first play)
+    let audioCtx: AudioContext | null = null;
+    let analyser: AnalyserNode | null = null;
+    let analyserData: Uint8Array<ArrayBuffer> | null = null;
+    let audioSourceCreated = false;
+
+    function setupAnalyser(audio: HTMLAudioElement) {
+      if (audioSourceCreated) return;
+      try {
+        audioCtx = audioCtx ?? new AudioContext();
+        void audioCtx.resume();
+        const src = audioCtx.createMediaElementSource(audio);
+        audioSourceCreated = true;
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.5;
+        analyserData = new Uint8Array(
+          analyser.frequencyBinCount,
+        ) as Uint8Array<ArrayBuffer>;
+        src.connect(analyser);
+        analyser.connect(audioCtx.destination);
+      } catch {
+        analyser = null;
+        analyserData = null;
+      }
+    }
+
+    const BARS_N = 50; // number of vertical bars
+    const BARS_IDLE = (() => {
+      // Generic idle spectrum so users recognize this as audio, not decorative line
+      const mid = 16,
+        maxH = 24;
+      let d = "";
+      for (let i = 0; i < BARS_N; i++) {
+        const x = ((i + 0.5) / BARS_N) * 120;
+        const env = Math.sin(Math.PI * (i / (BARS_N - 1)));
+        const shape =
+          Math.abs(Math.sin(i * 0.45)) * 0.55 +
+          Math.abs(Math.sin(i * 0.95 + 1.2)) * 0.3 +
+          Math.abs(Math.sin(i * 1.55 + 0.4)) * 0.15;
+        const h = Math.max(0.6, env * shape * (maxH * 0.28));
+        d += `M ${x.toFixed(1)},${(mid - h).toFixed(1)} L ${x.toFixed(1)},${(mid + h).toFixed(1)} `;
+      }
+      return d.trim();
+    })();
+
+    // Builds a path of N vertical bar segments, either from real FFT data or synthetic sines.
+    function buildBarsPath(
+      freqData: Uint8Array<ArrayBuffer> | null,
+      t: number,
+    ): string {
+      const mid = 16,
+        maxH = 24;
+      let d = "";
+      for (let i = 0; i < BARS_N; i++) {
+        const x = ((i + 0.5) / BARS_N) * 120;
+        // Envelope: taper both ends to 0 so the waveform has closed tips
+        const env = Math.sin(Math.PI * (i / (BARS_N - 1)));
+        let amp: number;
+        if (freqData) {
+          // Map bar index to a frequency bin (1–89), skipping DC
+          const bin = Math.round(1 + (i / (BARS_N - 1)) * 88);
+          amp = freqData[bin] / 255;
+        } else {
+          // Synthetic: abs(sines) so values stay positive, like a real waveform
+          amp =
+            Math.abs(Math.sin(t * 2.1 + i * 0.55)) * 0.5 +
+            Math.abs(Math.sin(t * 3.7 + i * 0.9)) * 0.3 +
+            Math.abs(Math.sin(t * 1.3 + i * 1.4)) * 0.2;
+        }
+        const h = Math.max(0.4, amp * env * maxH);
+        d += `M ${x.toFixed(1)},${(mid - h).toFixed(1)} L ${x.toFixed(1)},${(mid + h).toFixed(1)} `;
+      }
+      return d.trim();
+    }
+
+    function applyIdleWaveform(root: ParentNode) {
+      root
+        .querySelector<SVGPathElement>(".reunion__tooltip-wave--main")
+        ?.setAttribute("d", BARS_IDLE);
+      root
+        .querySelector<SVGPathElement>(".reunion__tooltip-wave--core")
+        ?.setAttribute("d", BARS_IDLE);
+    }
+
+    // Ensure any server-rendered tooltip waveform starts as spectrum, not a flat line.
+    document
+      .querySelectorAll<HTMLElement>(
+        ".reunion__tooltip, .reunion-person-modal__audio",
+      )
+      .forEach((el) => applyIdleWaveform(el));
+
+    function getAudio(): HTMLAudioElement {
+      if (!audioEl) {
+        audioEl = new Audio();
+        audioEl.crossOrigin = "anonymous"; // required for Web Audio API on cross-origin sources
+        audioEl.addEventListener("timeupdate", syncAudioProgress);
+        audioEl.addEventListener("ended", onAudioEnded);
+      }
+      return audioEl;
+    }
+
+    function syncAudioProgress() {
+      if (!audioActiveTip) return;
+    }
+
+    function startWaveformAnim(tip: HTMLElement) {
+      if (waveRaf !== null) cancelAnimationFrame(waveRaf);
+      const pathMain = tip.querySelector<SVGPathElement>(
+        ".reunion__tooltip-wave--main",
+      );
+      const pathCore = tip.querySelector<SVGPathElement>(
+        ".reunion__tooltip-wave--core",
+      );
+      const waveform = tip.querySelector<SVGElement>(
+        ".reunion__tooltip-waveform",
+      );
+      if (!waveform) return;
+      waveform.classList.add("is-playing");
+      let t = 0;
+      function frame() {
+        t += 0.045;
+        let barPath: string;
+        if (analyser && analyserData) {
+          analyser.getByteFrequencyData(analyserData);
+          barPath = buildBarsPath(analyserData, t);
+        } else {
+          barPath = buildBarsPath(null, t);
+        }
+        pathMain?.setAttribute("d", barPath);
+        pathCore?.setAttribute("d", barPath);
+        waveRaf = requestAnimationFrame(frame);
+      }
+      waveRaf = requestAnimationFrame(frame);
+    }
+
+    function stopWaveformAnim(tip: HTMLElement) {
+      if (waveRaf !== null) {
+        cancelAnimationFrame(waveRaf);
+        waveRaf = null;
+      }
+      const pathMain = tip.querySelector<SVGPathElement>(
+        ".reunion__tooltip-wave--main",
+      );
+      const pathCore = tip.querySelector<SVGPathElement>(
+        ".reunion__tooltip-wave--core",
+      );
+      const waveform = tip.querySelector<SVGElement>(
+        ".reunion__tooltip-waveform",
+      );
+      if (!waveform) return;
+      waveform.classList.remove("is-playing");
+      pathMain?.setAttribute("d", BARS_IDLE);
+      pathCore?.setAttribute("d", BARS_IDLE);
+    }
+
+    function onAudioEnded() {
+      document.body.classList.remove("is-audio-playing");
+      if (!audioActiveTip) return;
+      stopWaveformAnim(audioActiveTip);
+      audioActiveTip
+        .querySelector<HTMLElement>(".reunion__tooltip-playbtn")
+        ?.classList.remove("is-playing");
+      audioActiveTip.classList.add("is-audio-complete");
+    }
+
+    function stopAudio() {
+      document.body.classList.remove("is-audio-playing");
+      if (!audioEl) return;
+      audioEl.pause();
+      if (audioActiveTip) {
+        stopWaveformAnim(audioActiveTip);
+        audioActiveTip
+          .querySelector<HTMLElement>(".reunion__tooltip-playbtn")
+          ?.classList.remove("is-playing");
+        audioActiveTip.classList.remove("is-audio-complete");
+        audioActiveTip = null;
+      }
+    }
+
+    function playAudioInTip(src: string, tip: HTMLElement) {
+      const audio = getAudio();
+      setupAnalyser(audio);
+
+      // Stop any other active audio first
+      if (audioActiveTip && audioActiveTip !== tip) stopAudio();
+
+      audioActiveTip = tip;
+
+      if (audio.src !== new URL(src, location.href).href || audio.ended) {
+        audio.src = src;
+        audio.currentTime = 0;
+      }
+
+      audio.play().catch(() => {
+        /* blocked by browser policy before user gesture */
+      });
+      document.body.classList.add("is-audio-playing");
+      startWaveformAnim(tip);
+      tip
+        .querySelector<HTMLElement>(".reunion__tooltip-playbtn")
+        ?.classList.add("is-playing");
+    }
+
+    function pauseAudio() {
+      document.body.classList.remove("is-audio-playing");
+      if (!audioEl || !audioActiveTip) return;
+      audioEl.pause();
+      stopWaveformAnim(audioActiveTip);
+      audioActiveTip
+        .querySelector<HTMLElement>(".reunion__tooltip-playbtn")
+        ?.classList.remove("is-playing");
+    }
+
+    function unlockPersons() {
+      if (!isLocked) return;
+      isLocked = false;
+      lockedPhoto = null;
+      lockedPerson = null;
+      lockedTooltip = null;
+      deactivatePersons();
+    }
+
+    // ── Person tooltip + shared interaction ───────────────────────────────
+    // ── Tooltip pool ─────────────────────────────────────────────────────────
+    // One tooltip element per slot (max = max persons per chapter, usually ≤ 2)
+    const tooltipPool: HTMLElement[] = [];
+    let tooltipActivationToken = 0;
+
+    function createTooltipEl(): HTMLElement {
+      const el = document.createElement("div");
+      el.className = "reunion__tooltip";
+      el.setAttribute("aria-hidden", "true");
+      el.innerHTML = `
+        <blockquote class="reunion__tooltip-quote"></blockquote>
+        <div class="reunion__tooltip-signature-wrap" hidden></div>
+        <p class="reunion__tooltip-name"></p>
+        <p class="reunion__tooltip-legend"></p>
+        <div class="reunion__tooltip-audio" hidden>
+          <div class="reunion__tooltip-player">
+            <button class="reunion__tooltip-playbtn" type="button" aria-label="${playLabel}">
+              <svg class="reunion__tooltip-icon reunion__tooltip-icon--play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="8,5 19,12 8,19"/></svg>
+              <svg class="reunion__tooltip-icon reunion__tooltip-icon--pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            </button>
+            <svg class="reunion__tooltip-waveform" viewBox="0 0 120 32" preserveAspectRatio="none" aria-hidden="true">
+              <path class="reunion__tooltip-wave reunion__tooltip-wave--main" d="M 0,16 L 120,16"></path>
+              <path class="reunion__tooltip-wave reunion__tooltip-wave--core" d="M 0,16 L 120,16"></path>
+            </svg>
+          </div>
+        </div>`;
+      applyIdleWaveform(el);
+      return el;
+    }
+
+    function getTooltip(index: number, container: HTMLElement): HTMLElement {
+      if (!tooltipPool[index]) tooltipPool[index] = createTooltipEl();
+      const tip = tooltipPool[index];
+      if (tip.parentNode !== container) {
+        tip.remove();
+        container.appendChild(tip);
+      }
+      return tip;
+    }
+
+    function hideAllTooltips() {
+      tooltipActivationToken += 1;
+      stopAudio();
+      tooltipPool.forEach((tip) => {
+        tip.classList.remove("is-visible", "is-audio-complete");
+        const sigWrap = tip.querySelector<HTMLElement>(
+          ".reunion__tooltip-signature-wrap",
+        )!;
+        const nameEl = tip.querySelector<HTMLElement>(
+          ".reunion__tooltip-name",
+        )!;
+        const legEl = tip.querySelector<HTMLElement>(
+          ".reunion__tooltip-legend",
+        )!;
+        const audioPanel = tip.querySelector<HTMLElement>(
+          ".reunion__tooltip-audio",
+        );
+        gsap.killTweensOf(nameEl.querySelectorAll("span"));
+        gsap.killTweensOf(legEl.querySelectorAll("span"));
+        sigWrap.innerHTML = "";
+        sigWrap.setAttribute("hidden", "");
+        nameEl.textContent = "";
+        legEl.textContent = "";
+        if (audioPanel) {
+          audioPanel.setAttribute("hidden", "");
+          gsap.set(audioPanel, { opacity: 0, y: 6 });
+        }
+      });
+    }
+
+    function animateTooltipText(el: HTMLElement, text: string, delay = 0) {
+      el.innerHTML = text
+        .split("")
+        .map(
+          (ch) =>
+            `<span style="opacity:0;display:inline">${ch === " " ? "\u00A0" : ch}</span>`,
+        )
+        .join("");
+      gsap.to(el.querySelectorAll("span"), {
+        opacity: 1,
+        y: 0,
+        duration: 0.05,
+        stagger: 0.018,
+        delay,
+      });
+    }
+
+    function waitForImageOrTimeout(
+      img: HTMLImageElement,
+      timeoutMs = 260,
+    ): Promise<void> {
+      if (img.complete) return Promise.resolve();
+
+      return new Promise((resolve) => {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          resolve();
+        };
+
+        const timeoutId = window.setTimeout(finish, timeoutMs);
+        const onLoadOrError = () => {
+          window.clearTimeout(timeoutId);
+          finish();
+        };
+
+        img.addEventListener("load", onLoadOrError, { once: true });
+        img.addEventListener("error", onLoadOrError, { once: true });
+
+        // decode() helps avoid paint jank where supported.
+        if (typeof img.decode === "function") {
+          img.decode().then(onLoadOrError).catch(onLoadOrError);
+        }
+      });
+    }
+
+    const gap = 16;
+
+    function positionTooltipAt(
+      tip: HTMLElement,
+      rect: DOMRect,
+      dataset: DOMStringMap,
+      container: HTMLElement,
+    ) {
+      const exactLeft =
+        dataset.tooltipLeft != null && dataset.tooltipLeft !== ""
+          ? Number(dataset.tooltipLeft)
+          : NaN;
+      const exactTop =
+        dataset.tooltipTop != null && dataset.tooltipTop !== ""
+          ? Number(dataset.tooltipTop)
+          : NaN;
+
+      if (Number.isFinite(exactLeft) && Number.isFinite(exactTop)) {
+        tip.style.left = `${exactLeft}%`;
+        tip.style.top = `${exactTop}%`;
+        tip.style.transform = "translate(-50%, -50%)";
+        return;
+      }
+
+      const cr = container.getBoundingClientRect();
+      const forceSide =
+        (dataset.tooltipSide as "left" | "right" | "") || undefined;
+      const offsetY = parseFloat(dataset.tooltipOffsetY ?? "0") || 0;
+      const topPx = rect.top + rect.height * 0.2 + offsetY;
+      const side =
+        forceSide ??
+        (rect.right + gap + tip.offsetWidth < window.innerWidth
+          ? "right"
+          : "left");
+      const topPct = ((topPx - cr.top) / cr.height) * 100;
+      tip.style.top = `${topPct}%`;
+      tip.style.transform = "translate(-50%, -50%)";
+      if (side === "right") {
+        const leftPx = Math.min(
+          rect.right + gap,
+          window.innerWidth - tip.offsetWidth - gap,
+        );
+        const leftPct = ((leftPx - cr.left) / cr.width) * 100;
+        tip.style.left = `${leftPct}%`;
+        tip.style.transform = "translate(0, -50%)";
+      } else {
+        const leftPx = Math.max(rect.left - gap, gap);
+        const leftPct = ((leftPx - cr.left) / cr.width) * 100;
+        tip.style.left = `${leftPct}%`;
+        tip.style.transform = "translate(-100%, -50%)";
+      }
+    }
+
+    function activatePersons(
+      matchingPersons: SVGGElement[],
+      chapterIndices: number[],
+      audioTargetPerson?: SVGGElement,
+      autoPlay = true,
+    ) {
+      hideAllTooltips();
+      const activationToken = tooltipActivationToken;
+      const tooltipContainer = hitboxContainer!;
+      const svg =
+        matchingPersons[0]?.closest<SVGSVGElement>(".reunion__people");
+      const signatures: string[] = svg
+        ? (JSON.parse(svg.dataset.signatures ?? "[]") as string[])
+        : [];
+
+      const personIndices = matchingPersons.map((g) =>
+        parseInt(g.dataset.personIndex ?? "0"),
+      );
+      const rects = matchingPersons.map((g) => g.getBoundingClientRect());
+
+      matchingPersons.forEach((g, slotIdx) => {
+        const idx = parseInt(g.dataset.personIndex ?? "0");
+        const name = g.dataset.name ?? "";
+        const legend = (g.dataset.legend ?? "").trim();
+        const sigUrl = signatures[idx];
+
+        const tip = getTooltip(slotIdx, tooltipContainer);
+        const sigWrap = tip.querySelector<HTMLElement>(
+          ".reunion__tooltip-signature-wrap",
+        )!;
+        const nameEl = tip.querySelector<HTMLElement>(
+          ".reunion__tooltip-name",
+        )!;
+        const legEl = tip.querySelector<HTMLElement>(
+          ".reunion__tooltip-legend",
+        )!;
+
+        sigWrap.innerHTML = "";
+        let signatureImg: HTMLImageElement | null = null;
+        if (sigUrl) {
+          const img = document.createElement("img");
+          img.className = "reunion__tooltip-signature";
+          img.src = sigUrl;
+          img.alt = "";
+          const sigMaxH = g.dataset.signatureMaxHeight;
+          if (sigMaxH) img.style.maxHeight = `${sigMaxH}px`;
+          sigWrap.appendChild(img);
+          sigWrap.removeAttribute("hidden");
+          signatureImg = img;
+        } else {
+          sigWrap.setAttribute("hidden", "");
+        }
+
+        // Audio panel — populate if this person has an audio clip
+        const audioUrl = g.dataset.audio ?? "";
+        const quoteText = g.dataset.quote ?? "";
+        const audioPanel = tip.querySelector<HTMLElement>(
+          ".reunion__tooltip-audio",
+        )!;
+        const quoteEl = tip.querySelector<HTMLElement>(
+          ".reunion__tooltip-quote",
+        )!;
+
+        if (isEn) {
+          // English: show quote text only, no audio player
+          quoteEl.textContent = quoteText;
+          quoteEl.toggleAttribute("hidden", !quoteText);
+          audioPanel.setAttribute("hidden", "");
+        } else if (audioUrl && audioTargetPerson === g) {
+          // Spanish: waveform always visible; play button hidden on desktop via CSS
+          quoteEl.setAttribute("hidden", "");
+          audioPanel.removeAttribute("hidden");
+
+          // Re-create play button to avoid stale listeners
+          const oldBtn = tip.querySelector<HTMLElement>(
+            ".reunion__tooltip-playbtn",
+          )!;
+          const newBtn = oldBtn.cloneNode(true) as HTMLElement;
+          oldBtn.replaceWith(newBtn);
+          newBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const audio = getAudio();
+            if (audioActiveTip === tip && !audio.paused && !audio.ended) {
+              pauseAudio();
+            } else {
+              playAudioInTip(audioUrl, tip);
+              const clickEl = `audio_${pId(g.dataset.name ?? "")}`;
+              ga4("person_audio_play", { click_element: clickEl });
+              fl.click(clickEl);
+            }
+          });
+
+          gsap.fromTo(
+            audioPanel,
+            { opacity: 0, y: 6 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.3,
+              ease: "power2.out",
+              delay: 0.18,
+            },
+          );
+
+          if (autoPlay) {
+            playAudioInTip(audioUrl, tip);
+            lockedTooltip = tip;
+            const autoClickEl = `audio_${pId(g.dataset.name ?? "")}`;
+            ga4("person_audio_play", { click_element: autoClickEl });
+            fl.click(autoClickEl);
+          }
+        } else {
+          quoteEl.setAttribute("hidden", "");
+          audioPanel.setAttribute("hidden", "");
+        }
+
+        const showTooltip = () => {
+          if (activationToken !== tooltipActivationToken) return;
+          positionTooltipAt(tip, rects[slotIdx], g.dataset, tooltipContainer);
+          tip.classList.add("is-visible");
+          animateTooltipText(nameEl, name, 0.06);
+          animateTooltipText(legEl, legend, 0.1);
+        };
+
+        if (signatureImg) {
+          waitForImageOrTimeout(signatureImg).then(showTooltip);
+          // If timeout fires first, correct position when real dimensions arrive.
+          signatureImg.addEventListener(
+            "load",
+            () => {
+              if (
+                activationToken !== tooltipActivationToken ||
+                !tip.classList.contains("is-visible")
+              ) {
+                return;
+              }
+              positionTooltipAt(
+                tip,
+                rects[slotIdx],
+                g.dataset,
+                tooltipContainer,
+              );
+            },
+            { once: true },
+          );
+        } else {
+          showTooltip();
+        }
+      });
+
+      // Update person opacities via WebGL canvas
+      if (webglCanvas) {
+        personOpacityProxies.forEach((p) => gsap.killTweensOf(p));
+        personOpacityProxies.length = 0;
+
+        const rIdx = currentReunionIndex;
+        const totalPersons = reunionsData[rIdx]?.images.length ?? 0;
+        for (let pi = 0; pi < totalPersons; pi++) {
+          const target = personIndices.includes(pi) ? 1 : 0;
+          const proxy = { val: webglCanvas.getPersonOpacity(rIdx, pi) };
+          personOpacityProxies.push(proxy);
+          gsap.to(proxy, {
+            val: target,
+            duration: 0.25,
+            ease: "power2.out",
+            onUpdate: () => webglCanvas!.setPersonOpacity(rIdx, pi, proxy.val),
+          });
+        }
+      }
+
+      // Dim chapter items: highlight those matching chapterIndices (1-based)
+      elChaptersList?.querySelectorAll<HTMLElement>("li").forEach((item) => {
+        const ch = parseInt(item.dataset.chapter ?? "0");
+        const isActive = chapterIndices.includes(ch);
+        item.classList.toggle("is-active", isActive);
+        gsap.killTweensOf(item);
+        gsap.to(item, {
+          opacity: isActive ? 1 : 0.3,
+          duration: 0.2,
+          ease: "power2.out",
+        });
+      });
+    }
+
+    function deactivatePersons() {
+      hideAllTooltips();
+
+      // Restore all person opacities via canvas
+      if (webglCanvas) {
+        personOpacityProxies.forEach((p) => gsap.killTweensOf(p));
+        personOpacityProxies.length = 0;
+
+        const rIdx = currentReunionIndex;
+        const totalPersons = reunionsData[rIdx]?.images.length ?? 0;
+        for (let pi = 0; pi < totalPersons; pi++) {
+          const proxy = { val: webglCanvas.getPersonOpacity(rIdx, pi) };
+          personOpacityProxies.push(proxy);
+          gsap.to(proxy, {
+            val: 1,
+            duration: 0.35,
+            ease: "power2.out",
+            onUpdate: () => webglCanvas!.setPersonOpacity(rIdx, pi, proxy.val),
+          });
+        }
+      }
+
+      // Restore all chapter items
+      const chapterItems = elChaptersList?.querySelectorAll<HTMLElement>("li");
+      if (chapterItems?.length) {
+        chapterItems.forEach((item) => item.classList.remove("is-active"));
+        gsap.killTweensOf(chapterItems);
+        gsap.to(chapterItems, {
+          opacity: 1,
+          duration: 0.25,
+          ease: "power2.out",
+        });
+      }
+    }
+
+    /** Modal dual Perú: `desc` = mayor índice primero (Julio antes que Joseline en cap. III). */
+    function sortPersonsByPersonIndex(
+      persons: SVGGElement[],
+      dir: "asc" | "desc" = "asc",
+    ): SVGGElement[] {
+      return [...persons].sort((a, b) => {
+        const delta =
+          parseInt(a.dataset.personIndex ?? "0", 10) -
+          parseInt(b.dataset.personIndex ?? "0", 10);
+        return dir === "asc" ? delta : -delta;
+      });
+    }
+
+    /** Peru: cap. III comparte dos personas; mismas áreas que el nav de capítulos. */
+    function getMatchingPersonsForHitbox(g: SVGGElement): SVGGElement[] {
+      const svg = g.closest<SVGSVGElement>(".reunion__people");
+      const reunionId = svg?.dataset.reunion ?? "";
+      const chapterNum = parseInt(g.dataset.chapter ?? "1");
+      if (reunionId !== "peru") {
+        return [g];
+      }
+      const persons = svg!.querySelectorAll<SVGGElement>(".reunion__person");
+      const matching = Array.from(persons).filter(
+        (p) => parseInt(p.dataset.chapter ?? "0") === chapterNum,
+      );
+      return matching.length > 0 ? matching : [g];
+    }
+
+    section
+      .querySelectorAll<SVGGElement>(".reunion__person")
+      .forEach((person) => {
+        person.addEventListener("mouseenter", (e) => {
+          if (isMobile()) return;
+          if (isLocked) return;
+          const g = e.currentTarget as SVGGElement;
+          const chapterNum = parseInt(g.dataset.chapter ?? "1");
+          const matching = getMatchingPersonsForHitbox(g);
+          const firstWithAudio =
+            matching.find((p) => p.dataset.audio) ?? matching[0];
+          activatePersons(matching, [chapterNum], firstWithAudio, false);
+        });
+        person.addEventListener("mouseleave", (e) => {
+          if (isMobile()) return;
+          if (isLocked) return;
+          const g = e.currentTarget as SVGGElement;
+          const related = e.relatedTarget as Node | null;
+          if (related && related instanceof Element) {
+            const svg = g.closest<SVGSVGElement>(".reunion__people");
+            if (svg?.dataset.reunion === "peru") {
+              const chapterNum = parseInt(g.dataset.chapter ?? "1");
+              const toPerson = related.closest(".reunion__person");
+              if (
+                toPerson &&
+                toPerson !== g &&
+                parseInt(
+                  (toPerson as SVGGElement).dataset.chapter ?? "0",
+                ) === chapterNum
+              ) {
+                return;
+              }
+            }
+          }
+          deactivatePersons();
+        });
+        person.addEventListener("click", () => {
+          const g = person as SVGGElement;
+          const matching = getMatchingPersonsForHitbox(g);
+          const svg = g.closest<SVGSVGElement>(".reunion__people");
+          const isPeruMulti = svg?.dataset.reunion === "peru" && matching.length > 1;
+
+          if (isMobile()) {
+            if (isPeruMulti && matching.length >= 2) {
+              const [a, b] = sortPersonsByPersonIndex(matching, "desc");
+              openPersonModal(a, b);
+            } else {
+              openPersonModal(g);
+            }
+            return;
+          }
+
+          if (isPeruMulti) {
+            if (isLocked && lockedPerson === null) {
+              unlockPersons();
+              return;
+            }
+            const chapterNum = parseInt(g.dataset.chapter ?? "1");
+            const firstWithAudio =
+              matching.find((p) => p.dataset.audio) ?? matching[0];
+            isLocked = true;
+            lockedPhoto = hitboxContainer;
+            lockedPerson = null;
+            activatePersons(matching, [chapterNum], firstWithAudio, true);
+            return;
+          }
+
+          const chapterNum = parseInt(g.dataset.chapter ?? "1");
+          const audioUrl = g.dataset.audio ?? "";
+
+          if (isLocked && lockedPerson === g) {
+            if (audioUrl && lockedTooltip) {
+              const audio = getAudio();
+              if (!audio.paused && !audio.ended) pauseAudio();
+              else playAudioInTip(audioUrl, lockedTooltip);
+            }
+            return;
+          }
+
+          isLocked = true;
+          lockedPhoto = hitboxContainer;
+          lockedPerson = g;
+          activatePersons([g], [chapterNum], g);
+        });
+      });
+
+    // ── Snapshot sequence via canvas ──────────────────────────────────────
+    const snapshotProxies: { val: number }[] = [];
+
+    function playSnapshotSequence(reunionIndex: number) {
+      if (!webglCanvas) return;
+      const personCount = reunionsData[reunionIndex]?.images.length ?? 0;
+
+      entranceAnimComplete = false;
+
+      // Kill any in-progress entrance or hover tweens
+      snapshotProxies.forEach((p) => gsap.killTweensOf(p));
+      snapshotProxies.length = 0;
+      personOpacityProxies.forEach((p) => gsap.killTweensOf(p));
+      personOpacityProxies.length = 0;
+
+      gsap.killTweensOf(canvasEl);
+
+      cancelSnapshotReadyDelay();
+      section.classList.remove("is-snapshot-ready");
+
+      if (personCount === 0) {
+        entranceAnimComplete = true;
+        syncSnapshotReadyGate();
+        return;
+      }
+
+      if (webglCanvas.staggerPersonEntrance === false) {
+        webglCanvas.setAllPersonOpacities(reunionIndex, 1);
+        gsap.set(canvasEl, { filter: "none" });
+        entranceAnimComplete = true;
+        syncSnapshotReadyGate();
+        return;
+      }
+
+      const FADE_OUT = 0.12; // collective fade-out before stagger
+      const STAGGER_DELAY = 0.1; // gap between each person (overlap = duration - delay)
+      const STAGGER_DURATION = 1; // per-person opacity rise
+      const BLUR_PEAK = 8; // px of blur at entrance peak
+      const BLUR_DURATION = 1; // how long blur takes to fully clear
+
+      // Phase 1 — collective fade-out + apply blur to canvas
+      for (let i = 0; i < personCount; i++) {
+        const startVal = webglCanvas.getPersonOpacity(reunionIndex, i);
+        const fadeProxy = { val: startVal };
+        snapshotProxies.push(fadeProxy);
+        gsap.to(fadeProxy, {
+          val: 0,
+          duration: FADE_OUT,
+          ease: "power2.in",
+          overwrite: true,
+          onUpdate: () =>
+            webglCanvas!.setPersonOpacity(reunionIndex, i, fadeProxy.val),
+        });
+      }
+
+      // Blur snaps in at fade-out midpoint, then clears smoothly during the stagger
+      gsap.set(canvasEl, {
+        filter: `blur(${BLUR_PEAK}px)`,
+        delay: FADE_OUT * 0.5,
+      });
+      gsap.to(canvasEl, {
+        filter: "blur(0px)",
+        duration: BLUR_DURATION,
+        ease: "power3.out",
+        delay: FADE_OUT,
+      });
+
+      // Phase 2 — overlapping stagger: persons share most of their animation time
+      for (let i = 0; i < personCount; i++) {
+        const inProxy = { val: 0 };
+        snapshotProxies.push(inProxy);
+        gsap.to(inProxy, {
+          val: 1,
+          duration: STAGGER_DURATION,
+          ease: "sine.out",
+          delay: FADE_OUT + i * STAGGER_DELAY,
+          overwrite: false,
+          onUpdate: () =>
+            webglCanvas!.setPersonOpacity(reunionIndex, i, inProxy.val),
+          onComplete:
+            i === personCount - 1
+              ? () => {
+                  entranceAnimComplete = true;
+                  syncSnapshotReadyGate();
+                }
+              : undefined,
+        });
+      }
+    }
+
+    window.addEventListener("lenis:scrollToComplete", (e: Event) => {
+      // Always clear the anchor-scroll guard when any programmatic scrollTo finishes.
+      anchorScrollInFlight = false;
+
+      if ((e as CustomEvent<{ id: string }>).detail?.id !== "reunions") return;
+      refreshAndSync();
+      if (!section.classList.contains("is-snapshot-ready")) {
+        latestScrollProgress = reunionsProgressST.progress;
+        latestScrollState = getScrollState(latestScrollProgress, reunionCount);
+        playSnapshotSequence(currentReunionIndex);
+        syncSnapshotReadyGate();
+      }
+    });
+
+    // Raised by smooth-scroll.ts right before any programmatic Lenis/native
+    // scrollTo kicks off (e.g. menu overlay anchor links `#gallery`/`#stories`).
+    // We set a flag so reunionsProgressST.onUpdate won't intercept and kill the
+    // in-flight scroll animation with a locked dissolve tween.
+    window.addEventListener("lenis:scrollToStart", (e: Event) => {
+      const id = (e as CustomEvent<{ id: string }>).detail?.id;
+      // Navigating to the Reunions section itself should still snap via its own
+      // logic; only suppress when navigating to another section.
+      if (id === "reunions") return;
+      anchorScrollInFlight = true;
+
+      // If a locked reunion dissolve tween is currently running (e.g. user was
+      // mid-transition and then clicked an anchor), kill it so Lenis can take over.
+      if (lockedReunionTween) {
+        lockedReunionTween.kill();
+        lockedReunionTween = null;
+        section.classList.remove("is-reunions-transitioning");
+        releaseReunionTransitionScrollLock();
+      }
+    });
+
+    // Click on hitbox area (not on a person) = unlock
+    hitboxContainer?.addEventListener("click", (e) => {
+      if ((e.target as Element).closest(".reunion__person")) return;
+      unlockPersons();
+    });
+
+    // Initialize panel text + entrance animation for reunion 0.
+    updatePanelData(0);
+    latestScrollProgress = reunionsProgressST.progress;
+    latestScrollState = getScrollState(latestScrollProgress, reunionCount);
+    playSnapshotSequence(0);
+    syncSnapshotReadyGate();
+
+    // Show CTA once section becomes visible
+    showCta();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initReunions);
+  } else {
+    initReunions();
+  }
+</script>

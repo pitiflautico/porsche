@@ -1,0 +1,43 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Hero from "../sections/Hero/Hero.astro";
+import Interlude from "../sections/Interlude/Interlude.astro";
+import Quotes from "../sections/Quotes/Quotes.astro";
+import ReunionsV2 from "../sections/ReunionsV2/ReunionsV2.astro";
+import Gallery from "../sections/Gallery/Gallery.astro";
+import Stories from "../sections/Stories/Stories.astro";
+import { t, type Locale } from "../../i18n/utils";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale }: Props = Astro.props;
+const L: Locale = locale;
+---
+
+<BaseLayout
+  title={t(L, "home.pageTitle")}
+  description={t(L, "home.metaDescription")}
+  ogTitle={t(L, "home.ogTitle")}
+  ogDescription={t(L, "home.ogDescription")}
+  locale={L}
+  current="home"
+  pointer={true}
+>
+  <Hero title={t(L, "home.heroTitle")} />
+  <Interlude subtitle={t(L, "home.interludeSubtitle")} />
+  <Quotes locale={L} />
+  <ReunionsV2 locale={L} />
+  <Gallery
+    locale={L}
+    prevLabel={t(L, "home.galleryPrev")}
+    nextLabel={t(L, "home.galleryNext")}
+  />
+  <Stories
+    subtitle={t(L, "home.storiesSubtitle")}
+    tagline={t(L, "home.storiesTagline")}
+    ctaSubmit={t(L, "home.ctaSubmit")}
+    storiesGalleryLabel={t(L, "home.storiesGalleryLabel")}
+  />
+</BaseLayout>

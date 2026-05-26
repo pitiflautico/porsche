@@ -1,0 +1,127 @@
+---
+import "./stories.scss";
+
+interface Props {
+  subtitle: string;
+  tagline: string;
+  ctaSubmit: string;
+  storiesGalleryLabel: string;
+}
+
+const { subtitle, tagline, ctaSubmit, storiesGalleryLabel } = Astro.props;
+---
+
+<section
+  id="stories"
+  class="section section--center stories"
+  data-section="stories"
+>
+  <div class="wrapper">
+    <div class="stories__content wrapper__aside">
+      <h2 class="subtitle" set:html={subtitle} />
+      <p class="tagline">{tagline}</p>
+      <div class="ctas">
+        <button type="button" class="btn btn--primary" data-open-submit-modal>
+          {ctaSubmit}
+        </button>
+      </div>
+    </div>
+    <div class="stories__embed wrapper__main">
+      <p class="stories__gallery-label">{storiesGalleryLabel}</p>
+      <div id="stry-wrapper"></div>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function () {
+    type TW = typeof window & {
+      gtag?: (...a: unknown[]) => void;
+      floodlight?: { trackClick(el: string): void };
+    };
+    const tw = window as TW;
+    function ga4(event: string, params: Record<string, string>) {
+      tw.gtag?.("event", event, { send_to: "G-VDKT3GY3Z3", ...params });
+    }
+    function fl(el: string) {
+      tw.floodlight?.trackClick(el);
+    }
+
+    // open_modal — Stories CTA
+    const storiesModalBtn = document.querySelector<HTMLElement>(
+      "#stories [data-open-submit-modal]",
+    );
+    storiesModalBtn?.addEventListener("click", () => {
+      ga4("open_modal", { click_element: "modal_submit_story" });
+      ga4("cta_click", { click_element: "modal_submit_story" });
+      fl("modal_submit_story");
+      fl("cta_click_modal_submit_story");
+    });
+
+    // story_slide_change — Storystream arrows (async, use MutationObserver)
+    const stryWrapper = document.getElementById("stry-wrapper");
+    if (stryWrapper) {
+      const arrowObserver = new MutationObserver(() => {
+        const leftArrow = document.getElementById("stry-hub-carousel-left");
+        const rightArrow = document.getElementById("stry-hub-carousel-right");
+        if (leftArrow && rightArrow) {
+          arrowObserver.disconnect();
+          leftArrow.addEventListener("click", () => {
+            ga4("story_slide_change", { direction: "prev" });
+            fl("story_slide_change_prev");
+          });
+          rightArrow.addEventListener("click", () => {
+            ga4("story_slide_change", { direction: "next" });
+            fl("story_slide_change_next");
+          });
+        }
+      });
+      arrowObserver.observe(stryWrapper, { childList: true, subtree: true });
+
+      // Storystream read-more / lightbox: do not intercept clicks here.
+      // Wheel scroll inside `.stry-popup` is handled via `data-lenis-prevent` in `smooth-scroll.ts`.
+    }
+  })();
+</script>
+
+<script>
+  import { createElementParallax } from "../../../utils/parallaxUtils.js";
+
+  // Parallax animation for the stories container
+  createElementParallax("stories", ".stories__content", {
+    movement: 75,
+    direction: "up",
+  });
+
+  (function () {
+    let loaded = false;
+
+    function loadStoryStream() {
+      if (loaded) return;
+      loaded = true;
+      const script = document.createElement("script");
+      script.type = "text/javascript";
+      script.src =
+        "https://apps.storystream.ai/app/js/OWZhZmNmMTZmN2I5NGViNWVk.js";
+      document.body.appendChild(script);
+    }
+
+    const wrapper = document.getElementById("stry-wrapper");
+    if (!wrapper) return;
+
+    if ("IntersectionObserver" in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting) {
+            loadStoryStream();
+            observer.disconnect();
+          }
+        },
+        { rootMargin: "200px" },
+      );
+      observer.observe(wrapper);
+    } else {
+      loadStoryStream();
+    }
+  })();
+</script>
