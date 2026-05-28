@@ -1549,7 +1549,7 @@ const BARS_IDLE = (() => {
     function typeText(
       el: HTMLElement,
       text: string,
-      { stagger = 0.025, duration = 0.32 } = {},
+      { stagger = 0.025, duration = 0.32, delay = 0 } = {},
     ) {
       el.textContent = "";
       const chars: HTMLElement[] = [];
@@ -1569,20 +1569,25 @@ const BARS_IDLE = (() => {
       });
     }
 
-    function animatePanelTextIn(slideIdx: number) {
+    function animatePanelTextIn(slideIdx: number, delay = 0) {
       const panel = panels[slideIdx];
       if (!panel) return;
-      // Country = typing (like the section-2 lead).
-      const countryEl = panel.querySelector<HTMLElement>(".reunion__location-country");
-      if (countryEl) {
-        const cur = countryEl.textContent || "";
-        typeText(countryEl, cur, { stagger: 0.04, duration: 0.45 });
-      }
-      // Model + VIN keep the random-blur entrance.
-      const titleEl = panel.querySelector<HTMLElement>(".reunion__title");
-      const vinEl = panel.querySelector<HTMLElement>(".reunion__vin-number");
-      if (titleEl) animateTextRandomBlur(titleEl);
-      if (vinEl) animateTextRandomBlur(vinEl);
+      // City, model and VIN all type in (like the section-2 lead),
+      // staggered so they build one after another. `delay` lets the
+      // caller hold the start until a covering curtain has opened.
+      const seq = [
+        panel.querySelector<HTMLElement>(".reunion__location-country"),
+        panel.querySelector<HTMLElement>(".reunion__title"),
+        panel.querySelector<HTMLElement>(".reunion__vin-number"),
+      ];
+      seq.forEach((el, i) => {
+        if (!el) return;
+        typeText(el, el.textContent || "", {
+          stagger: 0.04,
+          duration: 0.45,
+          delay: delay + i * 0.12,
+        });
+      });
     }
     function animatePanelTextOut(slideIdx: number) {
       const panel = panels[slideIdx];
@@ -1947,6 +1952,9 @@ const targetY = reunionsEl.offsetTop + span * 0.82;
       dots.forEach((d, i) => d.classList.toggle("is-active", i === slide));
       panels.forEach((p, i) => p.classList.toggle("is-active", i === slide));
       updatePanelToPerson(slide, states[clamped].personIdx);
+      // Type the panel text in as the master controller's curtain opens
+      // (~0.5s into its ~1.4s reveal), since this runs while it's black.
+      animatePanelTextIn(slide, 0.5);
     }
 
     if (rWin.__reunionsExternalControl) {
