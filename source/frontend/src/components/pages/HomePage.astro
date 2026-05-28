@@ -25,6 +25,13 @@ const L: Locale = locale;
   current="home"
   pointer={true}
 >
+  {/* Hand Reunions over to the section-slider controller: it exposes
+      window.reunionsSlider and skips its own scroll listeners. Must run
+      before the component module scripts. */}
+  <script is:inline>
+    window.__reunionsExternalControl = true;
+  </script>
+
   <Hero title={t(L, "home.heroTitle")} />
   <Interlude subtitle={t(L, "home.interludeSubtitle")} />
   <Quotes locale={L} />
@@ -40,4 +47,76 @@ const L: Locale = locale;
     ctaSubmit={t(L, "home.ctaSubmit")}
     storiesGalleryLabel={t(L, "home.storiesGalleryLabel")}
   />
+
+  {/* Fullscreen curtain canvas for the section-slider handoffs. */}
+  <canvas
+    id="section-blob-canvas"
+    style="position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;opacity:0;"
+  ></canvas>
+
+  {/* Overscroll progress bar — fills at the end of Quotes (and between
+      slider steps) to telegraph the upcoming section change. */}
+  <div id="section-overscroll-bar"><div id="section-overscroll-fill"></div></div>
+
+  <style is:global>
+    /* While the slider owns the screen, Reunions and Gallery become
+       fixed full-viewport layers OUTSIDE the normal flow, so natural
+       scroll jumps straight from Quotes to Stories. They are pulled
+       out of the flow only once `.slider-layer` is applied (by the
+       controller), and shown when `.slider-layer--active` is set. */
+    #reunions.slider-layer,
+    #gallery.slider-layer,
+    #stories.slider-layer {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      min-height: 100vh !important;
+      max-height: 100vh !important;
+      z-index: 40;
+      opacity: 0;
+      visibility: hidden;
+      overflow: hidden;
+    }
+    #reunions.slider-layer--active,
+    #gallery.slider-layer--active,
+    #stories.slider-layer--active {
+      opacity: 1;
+      visibility: visible;
+      z-index: 41;
+    }
+    /* Make the inner content of each layer fill the viewport. */
+    #gallery.slider-layer .slider-gallery,
+    #gallery.slider-layer .gallery-grid,
+    #gallery.slider-layer .gallery-feature {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    #section-overscroll-bar {
+      position: fixed;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.12);
+      z-index: 9998;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    }
+    #section-overscroll-bar.is-visible { opacity: 1; }
+    #section-overscroll-fill {
+      height: 100%;
+      width: 0%;
+      background: #fff;
+      transition: width 0.08s linear;
+    }
+  </style>
+
+  <script>
+    import { initSectionSlider } from "../../scripts/section-slider";
+    if (document.readyState === "complete") initSectionSlider();
+    else window.addEventListener("load", initSectionSlider, { once: true });
+  </script>
 </BaseLayout>
