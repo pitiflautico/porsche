@@ -27,6 +27,7 @@ import { BlobTransition } from "./blob-transition";
 type ReunionsSlider = {
   slideCount: number;
   setSlideInstant: (idx: number) => void;
+  revealPanelText?: () => void;
 };
 type Lenis = {
   scrollTo?: (t: number | HTMLElement, o?: { immediate?: boolean }) => void;
@@ -139,15 +140,25 @@ export function initSectionSlider() {
     const nextFrame = () =>
       new Promise<void>((r) => requestAnimationFrame(() => r()));
 
+    // Fire the panel typing partway through the ~1400ms curtain (not at
+    // the end) so the city/model/VIN start writing as the panel is
+    // revealed, instead of sitting empty until the curtain fully clears.
+    const REVEAL_TEXT_AT = 550; // ms after the curtain starts
+    function scheduleTextReveal() {
+      setTimeout(() => slider.revealPanelText?.(), REVEAL_TEXT_AT);
+    }
+
     // ---- Mode transitions -------------------------------------------------
     async function quotesToReunions() {
       animating = true; resetBar(); lockScroll(true);
       car = 0;
-      await curtainSwap(() => {
+      const swap = curtainSwap(() => {
         setFlow("reunions");
         showReunions(true);
         slider.setSlideInstant(0);
       });
+      scheduleTextReveal();
+      await swap;
       mode = "reunions"; animating = false; cooldown = performance.now() + 300;
     }
     async function reunionsToQuotes() {
@@ -162,7 +173,9 @@ export function initSectionSlider() {
     }
     async function reunionsCarTo(next: number) {
       animating = true; resetBar();
-      await curtainSwap(() => { car = next; slider.setSlideInstant(car); });
+      const swap = curtainSwap(() => { car = next; slider.setSlideInstant(car); });
+      scheduleTextReveal();
+      await swap;
       animating = false; cooldown = performance.now() + 220;
     }
     async function reunionsToGallery() {
@@ -187,11 +200,13 @@ export function initSectionSlider() {
     async function galleryToReunions() {
       animating = true; resetBar(); lockScroll(true);
       car = LAST_CAR;
-      await curtainSwap(() => {
+      const swap = curtainSwap(() => {
         setFlow("reunions");   // restores Hero/Interlude into the flow
         showReunions(true);
         slider.setSlideInstant(LAST_CAR);
       });
+      scheduleTextReveal();
+      await swap;
       mode = "reunions"; animating = false; cooldown = performance.now() + 300;
     }
 

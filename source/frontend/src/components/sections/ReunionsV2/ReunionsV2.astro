@@ -1583,11 +1583,36 @@ const BARS_IDLE = (() => {
       seq.forEach((el, i) => {
         if (!el) return;
         typeText(el, el.textContent || "", {
-          stagger: 0.04,
-          duration: 0.45,
-          delay: delay + i * 0.12,
+          stagger: 0.018,
+          duration: 0.22,
+          delay: delay + i * 0.06,
         });
       });
+    }
+    // Split city/model/VIN into hidden (opacity 0) per-char spans without
+    // animating. Used before a covering curtain so the full text isn't
+    // briefly visible as it opens; revealPanelText() then types them in.
+    function hidePanelText(slideIdx: number) {
+      const panel = panels[slideIdx];
+      if (!panel) return;
+      const sels = [
+        ".reunion__location-country",
+        ".reunion__title",
+        ".reunion__vin-number",
+      ];
+      for (const sel of sels) {
+        const el = panel.querySelector<HTMLElement>(sel);
+        if (!el) continue;
+        const text = el.textContent || "";
+        el.textContent = "";
+        for (const ch of text) {
+          const span = document.createElement("span");
+          span.textContent = ch === " " ? " " : ch;
+          span.style.display = "inline-block";
+          span.style.opacity = "0";
+          el.appendChild(span);
+        }
+      }
     }
     function animatePanelTextOut(slideIdx: number) {
       const panel = panels[slideIdx];
@@ -1934,6 +1959,7 @@ const targetY = reunionsEl.offsetTop + span * 0.82;
         reunionsSlider?: {
           slideCount: number;
           setSlideInstant: (idx: number) => void;
+          revealPanelText: () => void;
         };
       };
     const rWin = window as ReunionsWin;
@@ -1952,15 +1978,18 @@ const targetY = reunionsEl.offsetTop + span * 0.82;
       dots.forEach((d, i) => d.classList.toggle("is-active", i === slide));
       panels.forEach((p, i) => p.classList.toggle("is-active", i === slide));
       updatePanelToPerson(slide, states[clamped].personIdx);
-      // Type the panel text in as the master controller's curtain opens
-      // (~0.5s into its ~1.4s reveal), since this runs while it's black.
-      animatePanelTextIn(slide, 0.5);
+      // Runs while the controller's curtain is still black: leave the
+      // city/model/VIN hidden, split into chars. The controller calls
+      // revealPanelText() once the curtain has opened so the typing is
+      // actually visible (it was finishing under the black before).
+      hidePanelText(slide);
     }
 
     if (rWin.__reunionsExternalControl) {
       rWin.reunionsSlider = {
         slideCount: states.length,
         setSlideInstant,
+        revealPanelText: () => animatePanelTextIn(currentIdx, 0),
       };
       // Skip every internal scroll/wheel/touch listener. The master
       // controller drives everything.
