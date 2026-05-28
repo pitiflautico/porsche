@@ -1,0 +1,229 @@
+---
+// ISOLATED: section 5 (Reunions, fixed locked layer) + section 6
+// (Gallery) + section 7 (Stories), the last two in natural scroll.
+//
+// Validates the UPWARD crossing: at the TOP of Gallery, wheel-up is
+// blocked and feeds an overscroll bar; at 100% → curtain → Reunions
+// (locked slider, last car). Downward from Gallery is free, natural
+// scroll into Stories. From Reunions: overscroll-down → back to
+// Gallery; overscroll-up → previous car.
+import "../styles/global.scss";
+import ReunionsV2 from "../components/sections/ReunionsV2/ReunionsV2.astro";
+import Gallery from "../components/sections/Gallery/Gallery.astro";
+import Stories from "../components/sections/Stories/Stories.astro";
+import { t, type Locale } from "../i18n/utils";
+
+const locale: Locale = "es";
+const L = locale;
+---
+
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Test 3 — Reunions(5) ↑ Gallery(6) → Stories(7)</title>
+  </head>
+  <body>
+    <script is:inline>
+      window.__reunionsExternalControl = true;
+    </script>
+
+    <ReunionsV2 locale={L} />
+    <Gallery
+      locale={L}
+      prevLabel={t(L, "home.galleryPrev")}
+      nextLabel={t(L, "home.galleryNext")}
+    />
+    <Stories
+      subtitle={t(L, "home.storiesSubtitle")}
+      tagline={t(L, "home.storiesTagline")}
+      ctaSubmit={t(L, "home.ctaSubmit")}
+      storiesGalleryLabel={t(L, "home.storiesGalleryLabel")}
+    />
+
+    <canvas
+      id="t3-canvas"
+      style="position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;opacity:0;"
+    ></canvas>
+    <div id="t3-bar"><div id="t3-fill"></div></div>
+    <div id="t3-readout"></div>
+
+    <style is:global>
+      /* Reunions is a fixed full-viewport layer, OUT of the flow, so the
+         document is just Gallery + Stories (natural scroll). */
+      #reunions.t3-layer {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        min-height: 100vh !important;
+        max-height: 100vh !important;
+        z-index: 40;
+        opacity: 0;
+        visibility: hidden;
+        overflow: hidden;
+      }
+      #reunions.t3-layer--active {
+        opacity: 1;
+        visibility: visible;
+        /* Above Gallery's .modal-nav arrows (z-index:100), which escape
+           to the root stacking context because .section-gallery has no
+           z-index of its own. */
+        z-index: 200;
+      }
+
+      #t3-bar {
+        position: fixed; left: 0; bottom: 0; width: 100%; height: 6px;
+        background: rgba(255,255,255,.12); z-index: 9998;
+        opacity: 0; transition: opacity .2s ease; pointer-events: none;
+      }
+      #t3-bar.is-visible { opacity: 1; }
+      #t3-fill { height: 100%; width: 0%; background: #fff; transition: width .08s linear; }
+      #t3-readout {
+        position: fixed; top: 12px; right: 12px; z-index: 99999;
+        font: 12px/1.5 monospace; color: #0f0; background: rgba(0,0,0,.7);
+        padding: 8px 10px; border-radius: 6px; white-space: pre;
+        pointer-events: none;
+      }
+    </style>
+
+    <script>
+      import { BlobTransition } from "../scripts/blob-transition";
+
+      type RSlider = { slideCount: number; setSlideInstant: (i: number) => void };
+      const w = window as Window & typeof globalThis & { reunionsSlider?: RSlider };
+
+      const reunions = document.getElementById("reunions")!;
+      const gallery = document.getElementById("gallery")!;
+      const canvas = document.getElementById("t3-canvas") as HTMLCanvasElement;
+      const bar = document.getElementById("t3-bar")!;
+      const fill = document.getElementById("t3-fill")!;
+      const ro = document.getElementById("t3-readout")!;
+
+      // Pull Reunions out of the flow immediately.
+      reunions.classList.add("t3-layer");
+
+      function ready(cb: () => void, n = 0) {
+        if (w.reunionsSlider) cb();
+        else if (n < 200) setTimeout(() => ready(cb, n + 1), 50);
+        else console.warn("[test-3] reunionsSlider never ready");
+      }
+
+      ready(() => {
+        const slider = w.reunionsSlider!;
+        const LAST = slider.slideCount - 1;
+        const blob = new BlobTransition({ canvas, color: "#000000", duration: 1400 });
+
+        type Mode = "gallery" | "reunions";
+        let mode: Mode = "gallery";
+        let car = LAST;
+        let overscroll = 0;
+        let animating = false;
+        let cooldown = 0;
+        const OMAX = () => Math.round(window.innerHeight * 0.4);
+
+        function setBar(v: number) {
+          const pct = Math.max(0, Math.min(1, v / OMAX()));
+          fill.style.width = pct * 100 + "%";
+          bar.classList.toggle("is-visible", pct > 0.001);
+        }
+        function galleryTop() {
+          return window.scrollY + gallery.getBoundingClientRect().top;
+        }
+        function lockScroll(lock: boolean) {
+          document.documentElement.style.overflow = lock ? "hidden" : "";
+          document.body.style.overflow = lock ? "hidden" : "";
+        }
+        async function curtainSwap(apply: () => void) {
+          canvas.style.opacity = "1";
+          blob.setProgress(0);
+          apply();
+          await blob.play("out");
+          canvas.style.opacity = "0";
+        }
+
+        async function galleryToReunions() {
+          animating = true;
+          overscroll = 0; setBar(0);
+          lockScroll(true);
+          car = LAST;
+          await curtainSwap(() => {
+            reunions.classList.add("t3-layer--active");
+            slider.setSlideInstant(car);
+          });
+          mode = "reunions";
+          animating = false;
+          cooldown = performance.now() + 300;
+        }
+        async function reunionsToGallery() {
+          animating = true;
+          overscroll = 0; setBar(0);
+          await curtainSwap(() => {
+            reunions.classList.remove("t3-layer--active");
+            lockScroll(false);
+            window.scrollTo({ top: galleryTop(), behavior: "auto" });
+          });
+          mode = "gallery";
+          animating = false;
+          cooldown = performance.now() + 300;
+        }
+        async function goCar(next: number) {
+          animating = true;
+          overscroll = 0; setBar(0);
+          await curtainSwap(() => { car = next; slider.setSlideInstant(car); });
+          animating = false;
+          cooldown = performance.now() + 220;
+        }
+
+        function onWheel(e: WheelEvent) {
+          if (animating || performance.now() < cooldown) {
+            if (mode === "reunions") e.preventDefault();
+            return;
+          }
+          const max = OMAX();
+
+          if (mode === "gallery") {
+            // Block UPWARD at the top of Gallery → feed the bar → Reunions.
+            if (e.deltaY < 0 && window.scrollY <= galleryTop() + 1) {
+              e.preventDefault();
+              window.scrollTo({ top: galleryTop(), behavior: "auto" });
+              overscroll += -e.deltaY;
+              if (overscroll >= max) galleryToReunions();
+              else setBar(overscroll);
+            } else if (e.deltaY > 0 && overscroll > 0) {
+              overscroll = Math.max(0, overscroll - e.deltaY);
+              setBar(overscroll);
+            }
+            // Downward / mid-section → native scroll into Stories. Free.
+            return;
+          }
+
+          // reunions: fully locked, bar drives car nav + return to Gallery.
+          e.preventDefault();
+          overscroll += e.deltaY;
+          if (overscroll >= max) {
+            overscroll = 0; setBar(0);
+            if (car < LAST) goCar(car + 1);
+            else reunionsToGallery();
+          } else if (overscroll <= -max) {
+            overscroll = 0; setBar(0);
+            if (car > 0) goCar(car - 1);
+          } else setBar(Math.abs(overscroll));
+        }
+        window.addEventListener("wheel", onWheel, { passive: false, capture: true });
+
+        function tick() {
+          const gr = gallery.getBoundingClientRect();
+          ro.textContent =
+            "mode: " + mode + "  car: " + car + "/" + LAST + "\n" +
+            "vh: " + window.innerHeight + "  scrollY: " + Math.round(window.scrollY) + "\n" +
+            "gallery: top=" + Math.round(gr.top) + " h=" + Math.round(gr.height) + "\n" +
+            "overscroll: " + Math.round(overscroll) + " / " + OMAX();
+          requestAnimationFrame(tick);
+        }
+        tick();
+        console.log("[test-3] ready — gallery↔reunions", { LAST });
+      });
+    </script>
+  </body>
+</html>

@@ -83,7 +83,10 @@ const L: Locale = locale;
     #stories.slider-layer--active {
       opacity: 1;
       visibility: visible;
-      z-index: 41;
+      /* Above Gallery's .modal-nav arrows (z-index:100), which escape to
+         the root stacking context (their .section-gallery has no z-index
+         of its own) and would otherwise show over the Reunions layer. */
+      z-index: 200;
     }
     /* Make the inner content of each layer fill the viewport. */
     #gallery.slider-layer .slider-gallery,
@@ -91,6 +94,23 @@ const L: Locale = locale;
     #gallery.slider-layer .gallery-feature {
       width: 100% !important;
       height: 100% !important;
+    }
+
+    /* Gallery mode: take Hero + Interlude (and the GSAP pin-spacers they
+       create) out of the flow, so Gallery sits at the very top (offsetTop
+       ≈ 0). The .pin-spacer rule covers the Interlude pin (which wraps the
+       section); #hero covers the hero + its internal video pin-spacer. */
+    body.ss-gallery #hero,
+    body.ss-gallery .pin-spacer {
+      display: none !important;
+    }
+    /* Neutralize Gallery's internal parallax while it's a full-screen
+       slide: GSAP's scrub leaves .slider-gallery offset by ±movement px
+       (it never settles at 0 in this fixed-screen context), which leaves
+       a strip at the top/bottom. !important beats GSAP's inline transform. */
+    body.ss-gallery #gallery .slider-gallery,
+    body.ss-gallery #gallery .feature-content {
+      transform: none !important;
     }
 
     #section-overscroll-bar {

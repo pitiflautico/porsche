@@ -1,20 +1,26 @@
-// HomePage hybrid section navigation. Three modes:
+// HomePage section navigation — three modes:
 //
-//   "quotes"   — Hero/Interlude/Quotes scroll naturally. Reunions,
-//                Gallery and Stories are pulled out of the flow (fixed),
-//                so the document ends at Quotes and the scroll clamps
-//                there. Overscroll DOWN at the end → curtain → reunions.
+//   "quotes"   — Hero / Interlude / Quotes scroll naturally. Reunions,
+//                Gallery and Stories are fixed full-viewport layers OUT
+//                of the flow, so the document ends at Quotes and the
+//                scroll clamps there. Overscroll DOWN at the end →
+//                curtain → Reunions (car 0).
 //
-//   "reunions" — Reunions is a locked, fixed slider: car 0/1/2 with the
-//                pixelvault curtain between them (overscroll bar drives
-//                each crossing). Overscroll DOWN past the last car →
-//                curtain → gallery. Overscroll UP before car 0 →
-//                curtain → quotes.
+//   "reunions" — A locked fixed layer: the car slider. Overscroll DOWN
+//                advances cars; past the last → curtain → Gallery.
+//                Overscroll UP retreats; before car 0 → curtain → back
+//                to Quotes (at its end).
 //
-//   "gallery"  — Gallery + Stories scroll NATURALLY downward (Quotes and
-//                Reunions are out of the flow). The TOP of Gallery is
-//                clamped: overscroll UP there → curtain → back to the
-//                last Reunions car. Downward into Stories is free.
+//   "gallery"  — Gallery + Stories scroll naturally DOWN (Gallery is a
+//                normal 100vh section, Stories below it). Quotes and
+//                Reunions are fixed layers OUT of flow. The TOP of
+//                Gallery is clamped: wheel-UP there feeds an overscroll
+//                bar → curtain → Reunions (last car). Downward is free.
+//
+// Validated in isolation at /test-3. Gallery is in the natural flow
+// (not a fixed layer), and its on-screen position is read live with
+// getBoundingClientRect — robust against the Hero/Interlude pin
+// spacers, which make offsetTop unreliable.
 
 import { BlobTransition } from "./blob-transition";
 
@@ -26,6 +32,7 @@ type Lenis = {
   scrollTo?: (t: number | HTMLElement, o?: { immediate?: boolean }) => void;
   stop?: () => void;
   start?: () => void;
+  on?: (e: string, cb: () => void) => void;
 };
 type SliderWin = Window &
   typeof globalThis & { reunionsSlider?: ReunionsSlider; lenis?: Lenis };
@@ -49,11 +56,24 @@ export function initSectionSlider() {
   const w = window as SliderWin;
   const getLenis = () => w.lenis;
 
-  // Mode "quotes" is the initial flow: Reunions/Gallery/Stories out of
-  // the flow so the document ends at Quotes.
-  reunionsEl.classList.add("slider-layer");
-  galleryEl.classList.add("slider-layer");
-  storiesEl?.classList.add("slider-layer");
+  type Mode = "quotes" | "reunions" | "gallery";
+
+  // setFlow recomposes which sections live in the document flow.
+  // Reunions is always a layer (shown only when active). Gallery and
+  // Stories are layers EXCEPT in gallery mode, where they return to the
+  // natural flow so the user can scroll Gallery → Stories.
+  function setFlow(m: Mode) {
+    quotesEl!.classList.toggle("slider-layer", m !== "quotes");
+    reunionsEl!.classList.add("slider-layer");
+    galleryEl!.classList.toggle("slider-layer", m !== "gallery");
+    storiesEl?.classList.toggle("slider-layer", m !== "gallery");
+    // In gallery mode, pull Hero + Interlude (and their pin-spacers) out
+    // of the flow so Gallery becomes the first in-flow element at the top
+    // (offsetTop ≈ 0) — exactly like /test-3. Otherwise the Hero/Interlude
+    // pins re-pin on scroll and shift Gallery's position out from under us.
+    document.body.classList.toggle("ss-gallery", m === "gallery");
+  }
+  setFlow("quotes");
 
   function ready(cb: () => void, tries = 0) {
     if (w.reunionsSlider) cb();
@@ -63,41 +83,19 @@ export function initSectionSlider() {
 
   ready(() => {
     const slider = w.reunionsSlider!;
+    const LAST_CAR = slider.slideCount - 1;
     const blob = new BlobTransition({
       canvas: canvasEl!,
       color: "#000000",
       duration: 1400,
     });
-    const LAST_CAR = slider.slideCount - 1;
 
-    type Mode = "quotes" | "reunions" | "gallery";
     let mode: Mode = "quotes";
-    let car = 0; // active reunions car while in "reunions" mode
+    let car = 0;
     let overscroll = 0;
     let animating = false;
     let cooldown = 0;
     const OVERSCROLL_MAX = () => Math.round(window.innerHeight * 0.4);
-
-    // ── flow layout per mode ─────────────────────────────────────────
-    function setFlow(m: Mode) {
-      // Which sections are OUT of the document flow (fixed layers).
-      quotesEl!.classList.toggle("slider-layer", m === "gallery");
-      reunionsEl!.classList.toggle("slider-layer", true); // always fixed
-      galleryEl!.classList.toggle("slider-layer", m !== "gallery");
-      storiesEl?.classList.toggle("slider-layer", m !== "gallery");
-    }
-    function showReunionsCar(idx: number | null) {
-      const active = idx !== null;
-      reunionsEl!.classList.toggle("slider-layer--active", active);
-      if (active) {
-        slider.setSlideInstant(idx);
-        car = idx;
-      }
-    }
-    function showGallery(active: boolean) {
-      galleryEl!.classList.toggle("slider-layer--active", active);
-      storiesEl?.classList.toggle("slider-layer--active", active);
-    }
 
     function lockScroll(lock: boolean) {
       document.documentElement.style.overflow = lock ? "hidden" : "";
@@ -116,12 +114,19 @@ export function initSectionSlider() {
       if (fillEl) fillEl.style.width = pct * 100 + "%";
       barEl?.classList.toggle("is-visible", pct > 0.001);
     }
+    function resetBar() { overscroll = 0; setBar(0); }
 
+    // Live, pin-proof positions.
     function maxScrollQuotes(): number {
-      return quotesEl!.offsetTop + quotesEl!.offsetHeight - window.innerHeight;
+      return window.scrollY + quotesEl!.getBoundingClientRect().bottom
+        - window.innerHeight;
     }
     function galleryTop(): number {
       return galleryEl!.offsetTop;
+    }
+
+    function showReunions(on: boolean) {
+      reunionsEl!.classList.toggle("slider-layer--active", on);
     }
 
     async function curtainSwap(apply: () => void) {
@@ -131,78 +136,66 @@ export function initSectionSlider() {
       await blob.play("out");
       canvasEl!.style.opacity = "0";
     }
-    function resetOverscroll() {
-      overscroll = 0;
-      setBar(0);
-    }
+    const nextFrame = () =>
+      new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-    // ── transitions between modes / cars ─────────────────────────────
+    // ---- Mode transitions -------------------------------------------------
     async function quotesToReunions() {
-      animating = true;
-      resetOverscroll();
-      lockScroll(true);
+      animating = true; resetBar(); lockScroll(true);
+      car = 0;
       await curtainSwap(() => {
         setFlow("reunions");
-        showGallery(false);
-        showReunionsCar(0);
+        showReunions(true);
+        slider.setSlideInstant(0);
       });
-      mode = "reunions";
-      animating = false;
-      cooldown = performance.now() + 300;
+      mode = "reunions"; animating = false; cooldown = performance.now() + 300;
     }
-
     async function reunionsToQuotes() {
-      animating = true;
-      resetOverscroll();
+      animating = true; resetBar();
       await curtainSwap(() => {
-        showReunionsCar(null);
+        showReunions(false);
         setFlow("quotes");
         lockScroll(false);
         scrollToY(maxScrollQuotes());
       });
-      mode = "quotes";
-      animating = false;
-      cooldown = performance.now() + 300;
+      mode = "quotes"; animating = false; cooldown = performance.now() + 300;
     }
-
-    async function reunionsCarTo(idx: number) {
-      animating = true;
-      resetOverscroll();
-      await curtainSwap(() => showReunionsCar(idx));
-      animating = false;
-      cooldown = performance.now() + 200;
+    async function reunionsCarTo(next: number) {
+      animating = true; resetBar();
+      await curtainSwap(() => { car = next; slider.setSlideInstant(car); });
+      animating = false; cooldown = performance.now() + 220;
     }
-
     async function reunionsToGallery() {
-      animating = true;
-      resetOverscroll();
-      await curtainSwap(() => {
-        showReunionsCar(null);
-        setFlow("gallery"); // Gallery + Stories back into the flow
-        showGallery(true);
-        lockScroll(false);
-        scrollToY(galleryTop());
-      });
-      mode = "gallery";
-      animating = false;
-      cooldown = performance.now() + 300;
+      animating = true; resetBar();
+      // Cover in black, recompose the flow, then LAND Gallery at the top
+      // of the viewport before revealing. Lenis's immediate scroll only
+      // applies on its next rAF tick, so we re-assert across two frames.
+      canvasEl!.style.opacity = "1";
+      blob.setProgress(0);
+      showReunions(false);
+      setFlow("gallery");
+      lockScroll(false);
+      await nextFrame();              // let the new flow reflow
+      scrollToY(galleryEl!.offsetTop);
+      await nextFrame();
+      scrollToY(galleryEl!.offsetTop); // re-assert after Lenis ticks
+      await nextFrame();
+      await blob.play("out");          // reveal — Gallery now fills 100vh
+      canvasEl!.style.opacity = "0";
+      mode = "gallery"; animating = false; cooldown = performance.now() + 300;
     }
-
     async function galleryToReunions() {
-      animating = true;
-      resetOverscroll();
-      lockScroll(true);
+      animating = true; resetBar(); lockScroll(true);
+      car = LAST_CAR;
       await curtainSwap(() => {
-        showGallery(false);
-        setFlow("reunions");
-        showReunionsCar(LAST_CAR);
+        setFlow("reunions");   // restores Hero/Interlude into the flow
+        showReunions(true);
+        slider.setSlideInstant(LAST_CAR);
       });
-      mode = "reunions";
-      animating = false;
-      cooldown = performance.now() + 300;
+      mode = "reunions"; animating = false; cooldown = performance.now() + 300;
     }
 
-    // ── scroll clamps (natural modes) ────────────────────────────────
+    // ---- Natural-scroll clamps -------------------------------------------
     function onScroll() {
       if (animating) return;
       if (mode === "quotes") {
@@ -210,27 +203,32 @@ export function initSectionSlider() {
         if (window.scrollY > max) scrollToY(max);
       } else if (mode === "gallery") {
         const top = galleryTop();
-        if (window.scrollY < top) scrollToY(top); // can't go above Gallery
+        if (window.scrollY < top) scrollToY(top); // block scrolling up
       }
     }
     window.addEventListener("scroll", onScroll, { passive: true });
-    const lenisAny = getLenis() as unknown as {
-      on?: (e: string, cb: () => void) => void;
-    };
-    lenisAny?.on?.("scroll", onScroll);
+    getLenis()?.on?.("scroll", onScroll);
 
-    // ── wheel (capture phase to beat Lenis) ──────────────────────────
+    // Block the event from reaching Lenis (which listens in the bubble
+    // phase). preventDefault alone doesn't stop Lenis's smoothWheel from
+    // running its own programmatic scroll.
+    function block(e: WheelEvent) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+
+    // ---- Wheel / touch handoff -------------------------------------------
     function onWheel(e: WheelEvent) {
       if (animating || performance.now() < cooldown) {
-        if (mode === "reunions") e.preventDefault();
+        // During a transition / cooldown, freeze everything (Lenis too).
+        if (mode !== "quotes") block(e);
         return;
       }
       const max = OVERSCROLL_MAX();
 
       if (mode === "quotes") {
-        // Only act at the very end of Quotes (down → reunions).
         if (e.deltaY > 0 && window.scrollY >= maxScrollQuotes() - 1) {
-          e.preventDefault();
+          block(e);
           scrollToY(maxScrollQuotes());
           overscroll += e.deltaY;
           if (overscroll >= max) quotesToReunions();
@@ -243,10 +241,8 @@ export function initSectionSlider() {
       }
 
       if (mode === "gallery") {
-        // Free scroll down into Stories. At the TOP of Gallery, wheeling
-        // UP fills the bar and crosses back to Reunions.
         if (e.deltaY < 0 && window.scrollY <= galleryTop() + 1) {
-          e.preventDefault();
+          block(e);
           scrollToY(galleryTop());
           overscroll += -e.deltaY;
           if (overscroll >= max) galleryToReunions();
@@ -255,25 +251,22 @@ export function initSectionSlider() {
           overscroll = Math.max(0, overscroll - e.deltaY);
           setBar(overscroll);
         }
+        // Downward / mid-section → native (Lenis) scroll into Stories. Free.
         return;
       }
 
-      // reunions mode — fully locked; bar drives car nav + edges.
-      e.preventDefault();
+      // reunions: fully locked. Bar drives car nav + crossings.
+      block(e);
       overscroll += e.deltaY;
       if (overscroll >= max) {
-        overscroll = 0;
-        setBar(0);
+        resetBar();
         if (car < LAST_CAR) reunionsCarTo(car + 1);
         else reunionsToGallery();
       } else if (overscroll <= -max) {
-        overscroll = 0;
-        setBar(0);
+        resetBar();
         if (car > 0) reunionsCarTo(car - 1);
         else reunionsToQuotes();
-      } else {
-        setBar(Math.abs(overscroll));
-      }
+      } else setBar(Math.abs(overscroll));
     }
     window.addEventListener("wheel", onWheel, { passive: false, capture: true });
 
@@ -295,6 +288,6 @@ export function initSectionSlider() {
       { passive: false },
     );
 
-    console.log("[section-slider] ready (3-mode)", { cars: slider.slideCount });
+    console.log("[section-slider] ready", { lastCar: LAST_CAR });
   });
 }
