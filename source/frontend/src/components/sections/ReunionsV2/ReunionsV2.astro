@@ -71,6 +71,11 @@ const BARS_IDLE = (() => {
       ),
     )}
   >
+    {/* Fullscreen ink-blot mask canvas — same shader the section-
+        to-section handoffs use. Sits ABOVE everything in the page
+        (z-index in CSS). Visible only during transitions. */}
+    <canvas class="s5-mask-overlay" data-mask-overlay aria-hidden="true"></canvas>
+
     <div class="reunions__stage">
       {/* WebGL canvas — renders the transition between any pair of slides. */}
       <canvas id="s5-canvas" class="s5-canvas" aria-hidden="true"></canvas>
@@ -131,9 +136,13 @@ const BARS_IDLE = (() => {
                       {Array.from({ length: r.chapters }, (_, ci) => (
                         <li data-chapter={ci + 1}>
                           <a tabindex="0">
-                            <span class="reunion__chapter-label reunion__chapter-label--full">{chapterLabel}</span>
-                            <span class="reunion__chapter-label reunion__chapter-label--short">{chapterShort}</span>
-                            {" "}{toRoman(ci + 1)}
+                            {/* Each label carries its own split-hover so
+                                hovering a chapter triggers the same
+                                cascade-swap animation as the menu items
+                                in the header. Long/short variants are
+                                still toggled by CSS at the breakpoint. */}
+                            <span class="reunion__chapter-label reunion__chapter-label--full" data-split-hover>{`${chapterLabel} ${toRoman(ci + 1)}`}</span>
+                            <span class="reunion__chapter-label reunion__chapter-label--short" data-split-hover>{`${chapterShort} ${toRoman(ci + 1)}`}</span>
                           </a>
                         </li>
                       ))}
@@ -159,8 +168,8 @@ const BARS_IDLE = (() => {
         ))}
       </div>
 
-      {/* Tooltip for the active person — signature + name + audiogram. */}
-      <div class="s5-tooltip" data-tooltip>
+      {/* Tooltip slot 0 — primary (always used, holds the audiogram). */}
+      <div class="s5-tooltip" data-tooltip="0">
         <div class="s5-tooltip__signature" data-tooltip-signature></div>
         <p class="s5-tooltip__name" data-tooltip-name></p>
         <svg
@@ -173,6 +182,13 @@ const BARS_IDLE = (() => {
           <path class="s5-tooltip__wave s5-tooltip__wave--main" d={BARS_IDLE} />
           <path class="s5-tooltip__wave s5-tooltip__wave--core" d={BARS_IDLE} />
         </svg>
+      </div>
+      {/* Tooltip slot 1 — secondary (only shown when a chapter has
+          more than one person, e.g. Joseline+Julio / Pablo+Federico).
+          No audiogram: audio is global to the chapter. */}
+      <div class="s5-tooltip s5-tooltip--secondary" data-tooltip="1">
+        <div class="s5-tooltip__signature" data-tooltip-signature></div>
+        <p class="s5-tooltip__name" data-tooltip-name></p>
       </div>
 
       {/* Mouse-follow player. The ring itself IS the play button — a
@@ -274,8 +290,8 @@ const BARS_IDLE = (() => {
        this wrapper in HomePage. */
     #reunions.reunions {
       position: relative !important;
-      height: calc(60vh * 15 + 20vh) !important;
-      min-height: calc(60vh * 15 + 20vh) !important;
+      height: calc(90vh * 3 + 30vh) !important;
+      min-height: calc(90vh * 3 + 30vh) !important;
       max-height: none !important;
       overflow: visible !important;
     }
@@ -653,6 +669,40 @@ const BARS_IDLE = (() => {
     .reunion__chapters li.is-active {
       opacity: 1;
     }
+
+    /* Fullscreen mask overlay (BlobTransition canvas) — always
+       fixed on top of EVERYTHING during a transition, transparent
+       (opacity 0) otherwise. */
+    .s5-mask-overlay {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0;
+    }
+    body.s5-transitioning .s5-mask-overlay {
+      opacity: 1;
+    }
+
+    /* While Gallery is the active section, every fixed/floating bit
+       of Reunions UI must be invisible — `position: fixed` elements
+       (cursor play disc, label) and absolute-positioned overlays
+       (tooltip, panels) would otherwise float on top of Gallery.
+       Stays hidden during the back transition too, so they don't
+       appear early while the user is scrolling up. */
+    body.s5-in-gallery .s5-cursor-play,
+    body.s5-in-gallery .s5-cursor-label,
+    body.s5-in-gallery .s5-tooltip,
+    body.s5-in-gallery .s5-panels,
+    body.s5-in-gallery .s5-people-layers,
+    body.s5-in-gallery .s5-hitboxes,
+    body.s5-in-gallery .reunion__indicator {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
+    }
   </style>
 
   <script>
@@ -661,6 +711,21 @@ const BARS_IDLE = (() => {
       animateTextRandomBlur,
       animateTextRandomBlurOut,
     } from "../../../scripts/gsap-text-random-blur";
+    import { BlobTransition } from "../../../scripts/blob-transition";
+
+    // Unified blob transition (same shader, same colour) for every
+    // handoff inside Reunions: slide-to-slide, AND the Gallery
+    // section handoff. Lives in a fullscreen fixed overlay canvas.
+    const maskCanvas = document.querySelector<HTMLCanvasElement>(
+      "[data-mask-overlay]",
+    );
+    const blobTrans = maskCanvas
+      ? new BlobTransition({
+          canvas: maskCanvas,
+          color: "#000000",
+          duration: 900,
+        })
+      : null;
 
     // ──────────────────────────────────────────────────────────────────
     // WebGL setup
@@ -706,7 +771,34 @@ const BARS_IDLE = (() => {
       uniform sampler2D uTextureA;
       uniform sampler2D uTextureB;
       uniform float uRevealMode;     // 0 = normal A→B mix, 1 = reveal alpha
+      uniform float uSeed;           // randomises the ink-blot shape per run
       #define PI 3.1415926538
+
+      // Hash + value-noise + fbm for the organic ink-blot silhouette.
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+      }
+      float noise2D(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        float a = hash(i);
+        float b = hash(i + vec2(1.0, 0.0));
+        float c = hash(i + vec2(0.0, 1.0));
+        float d = hash(i + vec2(1.0, 1.0));
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+      }
+      float fbm(vec2 p) {
+        float v = 0.0;
+        float a = 0.5;
+        // 6 octaves for finer high-frequency detail → sharper tendrils.
+        for (int i = 0; i < 6; i++) {
+          v += a * noise2D(p);
+          p *= 2.13;
+          a *= 0.55;
+        }
+        return v;
+      }
 
       // object-fit: cover — center-crops the texture so it fills the canvas
       // without distortion regardless of aspect mismatch.
@@ -752,42 +844,45 @@ const BARS_IDLE = (() => {
       }
 
       void main() {
-        vec2 coords = vUv * uSize;
-        vec2 o1 = vec2(0.5) * uSize;
-
-        float t = pow(uProgress, 2.5);
-        float radius = uSize.x / 2.0;
-        float rad = t * radius;
-        float c1 = circleSDF(coords - o1, rad);
-
-        // More opening points across the viewport — additional rings/satellites
-        // so the mask blooms from many places, not just the center.
+        // Ink-blot mask. Starts as a small jagged speck at the center,
+        // grows accelerating (ease-IN, "gana velocidad") and its
+        // silhouette is randomised each time via uSeed + fbm so no two
+        // transitions look the same. Sharpening pushes the noise to its
+        // extremes → spiky, vertex-y tendrils instead of soft blobs.
         vec2 p = (vUv - 0.5) * uSize;
-        float r1 = radialCircles(p, 0.18 * uSize.x, 5.0);   // inner: 5
-        float r2 = radialCircles(p, 0.28 * uSize.x, 6.0);   // mid:   6
-        float r3 = radialCircles(p, 0.40 * uSize.x, 8.0);   // outer: 8
-        float r4 = radialCircles(p, 0.50 * uSize.x, 10.0);  // edge: 10
+        float dist = length(p);
 
-        float k = 50.0 / uSize.x;
-        float circle = softMin(c1, r1, k);
-        circle = softMin(circle, r2, k);
-        circle = softMin(circle, r3, k);
-        circle = softMin(circle, r4, k);
+        // High-frequency fbm for finer detail; centered at 0 then
+        // sharpened so peaks/valleys are exaggerated.
+        float n = fbm(vUv * 5.5 + vec2(uSeed, uSeed * 0.73)) - 0.5;
+        n = sign(n) * pow(abs(n) * 2.0, 1.4);
+        // Falloff so the very center stays small and the spikes only
+        // bloom out at mid distance — gives the tendril/tail look.
+        float falloff = smoothstep(0.0, length(uSize) * 0.4, dist);
+        dist += n * length(uSize) * 0.95 * falloff;
 
-        // step() gives the original's hard organic edge.
-        circle = step(circle, rad);
+        // Ease-IN on the radius (accelerating expansion) — sharper
+        // curve so the blot starts slower and snaps forward harder.
+        float t = pow(uProgress, 3.2);
+        // Overshoot generously so the spiky silhouette still covers
+        // the corners by the end.
+        float maxRad = length(uSize) * 0.8;
+        float rad = t * maxRad;
+        float circle = step(dist, rad);
 
-        // Outgoing slide zooms OUT (scale 1.0 → 0.94 — drifts away).
-        // Incoming slide zooms IN  (scale 0.94 → 1.0 — comes forward).
-        // Both end at 1.0 so the static slide sits at its natural size.
+        // Pure zoom-IN on both layers (scale is always <= 1 so the
+        // sampling stays INSIDE the texture — we never read outside
+        // [0,1] and the image edges never leak in).
+        //   Outgoing: 1.0 → 0.92  (gently zooms in as it leaves)
+        //   Incoming: 0.92 → 1.0  (starts zoomed in, settles to native)
         // easeOutCubic on the zoom progress = quick start, soft settle.
         float zoomEase = 1.0 - pow(1.0 - uProgress, 3.0);
-        float scaleA = mix(1.0, 0.94, zoomEase);
-        float scaleB = mix(0.94, 1.0, zoomEase);
+        float scaleA = mix(1.0, 0.92, zoomEase);
+        float scaleB = mix(0.92, 1.0, zoomEase);
         vec2 uvA = coverUv(vUv, uTexSizeA, uSize);
         vec2 uvB = coverUv(vUv, uTexSizeB, uSize);
-        uvA = (uvA - 0.5) / scaleA + 0.5;
-        uvB = (uvB - 0.5) / scaleB + 0.5;
+        uvA = (uvA - 0.5) * scaleA + 0.5;
+        uvB = (uvB - 0.5) * scaleB + 0.5;
         vec4 a = texture2D(uTextureA, uvA);
         vec4 b = texture2D(uTextureB, uvB);
 
@@ -841,7 +936,18 @@ const BARS_IDLE = (() => {
     const uTextureA = gl.getUniformLocation(program, "uTextureA");
     const uTextureB = gl.getUniformLocation(program, "uTextureB");
     const uRevealMode = gl.getUniformLocation(program, "uRevealMode");
+    const uSeed = gl.getUniformLocation(program, "uSeed");
     let revealMode = 0;
+    // Seed is regenerated at the start of every transition (slide-to-
+    // slide or section-to-section) so the ink-blot silhouette never
+    // repeats — `uSeed` feeds fbm and gives each run its own tendrils.
+    let seed = Math.random() * 1000;
+
+    // Single source of truth for "the blob is animating, hide every
+    // UI overlay". Drives the body.s5-transitioning CSS rule.
+    function setTransitionMaskActive(active: boolean) {
+      document.body.classList.toggle("s5-transitioning", active);
+    }
 
     // Texture per slide.
     function makeTexture(img: HTMLImageElement): WebGLTexture {
@@ -889,6 +995,13 @@ const BARS_IDLE = (() => {
     }
 
     function render() {
+      // Defensive: if either texture isn't ready yet, skip the draw.
+      // Binding an undefined texture defaults to the GL "null" texture
+      // and the shader samples solid black — which is exactly what
+      // happens on the very first slide-to-slide if the user moves
+      // before the images have decoded.
+      if (!textures[animFrom] || !textures[animTo]) return;
+
       resize();
       gl!.useProgram(program);
       gl!.uniform1f(uProgress, progress);
@@ -907,6 +1020,7 @@ const BARS_IDLE = (() => {
       gl!.bindTexture(gl!.TEXTURE_2D, textures[animTo]);
       gl!.uniform1i(uTextureB, 1);
       gl!.uniform1f(uRevealMode, revealMode);
+      gl!.uniform1f(uSeed, seed);
       gl!.clear(gl!.COLOR_BUFFER_BIT);
 
       gl!.drawArrays(gl!.TRIANGLES, 0, 6);
@@ -918,7 +1032,7 @@ const BARS_IDLE = (() => {
     }
     const transitionEase = easeInOutCubic;
 
-    function startTransition(toIdx: number, onComplete?: () => void) {
+    async function startTransition(toIdx: number, onComplete?: () => void) {
       if (animating || toIdx === currentIdx) return;
 
       dots[currentIdx]?.classList.remove("is-active");
@@ -926,8 +1040,8 @@ const BARS_IDLE = (() => {
       panels[currentIdx]?.classList.remove("is-active");
       panels[toIdx]?.classList.add("is-active");
 
-      // Fallback: no WebGL → instant swap.
-      if (!gl) {
+      // Fallback: no WebGL OR no blob overlay → instant swap.
+      if (!gl || !blobTrans) {
         currentIdx = toIdx;
         displayIdx = toIdx;
         onComplete?.();
@@ -935,30 +1049,28 @@ const BARS_IDLE = (() => {
       }
 
       animating = true;
-      animFrom = currentIdx;
+      setTransitionMaskActive(true);
+
+      // Phase 1: black ink-blot grows over the current slide. While
+      // the mask is opaque, no slide animation needs to happen — the
+      // user can't see anything underneath.
+      await blobTrans.play("in");
+
+      // Mask fully covers the viewport. Swap the underlying canvas
+      // to the new slide INSTANTLY (no animation).
+      currentIdx = toIdx;
+      displayIdx = toIdx;
+      animFrom = toIdx;
       animTo = toIdx;
       progress = 0;
-      const duration = 950;
-      const start = performance.now();
+      render();
 
-      function tick(now: number) {
-        const raw = Math.min(1, (now - start) / duration);
-        progress = transitionEase(raw);
-        render();
-        if (raw < 1) {
-          requestAnimationFrame(tick);
-        } else {
-          currentIdx = toIdx;
-          displayIdx = toIdx;
-          progress = 0;
-          animFrom = toIdx;
-          animTo = toIdx;
-          render();
-          animating = false;
-          onComplete?.();
-        }
-      }
-      requestAnimationFrame(tick);
+      // Phase 2: blot shrinks back, revealing the new slide.
+      await blobTrans.play("out");
+
+      animating = false;
+      setTransitionMaskActive(false);
+      onComplete?.();
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -1011,9 +1123,11 @@ const BARS_IDLE = (() => {
     // Flat list of all (slide, personIdx) states the user can land on,
     // in scroll order. Each person inside each slide is one tick.
     type State = { slide: number; personIdx: number };
-    const states: State[] = slideData.flatMap((s, si) =>
-      s.people.map((_, pi) => ({ slide: si, personIdx: pi })),
-    );
+    // Scroll-driven nav now hops between REUNIONS only — one state
+    // per car. The chapter-level state machine no longer drives scroll,
+    // because chapters/people are uncovered via hover or chapter-click
+    // (matches the original porschereunions.com flow).
+    const states: State[] = slideData.map((_, si) => ({ slide: si, personIdx: 0 }));
 
     let currentStateIdx = 0;
     let audioEl: HTMLAudioElement | null = null;
@@ -1033,9 +1147,12 @@ const BARS_IDLE = (() => {
       peopleLayers.forEach((layer) => layer.classList.remove("is-active"));
     }
 
-    const tooltipEl = document.querySelector<HTMLElement>("[data-tooltip]");
-    const tooltipName = document.querySelector<HTMLElement>("[data-tooltip-name]");
-    const tooltipSig = document.querySelector<HTMLElement>("[data-tooltip-signature]");
+    const tooltipEls = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-tooltip]"),
+    );
+    const tooltipEl = tooltipEls[0]!;
+    const tooltipName = tooltipEl.querySelector<HTMLElement>("[data-tooltip-name]");
+    const tooltipSig = tooltipEl.querySelector<HTMLElement>("[data-tooltip-signature]");
     const tooltipAudio = document.querySelector<HTMLButtonElement>("[data-tooltip-audio]");
     const tooltipWave = document.querySelector<SVGElement>("[data-tooltip-waveform]");
     const tooltipWaveMain = tooltipWave?.querySelector<SVGPathElement>(".s5-tooltip__wave--main") ?? null;
@@ -1143,67 +1260,149 @@ const BARS_IDLE = (() => {
     const hitboxLayers = Array.from(
       document.querySelectorAll<HTMLElement>(".s5-hitbox-layer"),
     );
-    function setActiveHitboxes(slideIdx: number, chapter: number) {
+    function setActiveHitboxes(slideIdx: number, _chapter: number) {
+      // All hitboxes of the current reunion are hot from the start —
+      // any person can be hovered/clicked at any time, like the
+      // original porschereunions.com. We no longer gate them by the
+      // current chapter.
       hitboxLayers.forEach((layer, i) => {
         const isCurrentSlide = i === slideIdx;
         layer.classList.toggle("is-active", isCurrentSlide);
         layer.querySelectorAll<HTMLElement>(".s5-hitbox").forEach((box) => {
-          const ch = Number(box.dataset.chapter);
-          box.classList.toggle("is-hot", isCurrentSlide && ch === chapter);
+          box.classList.toggle("is-hot", isCurrentSlide);
         });
       });
     }
 
+    // When the user clicks a chapter (in the side panel) we LOCK that
+    // chapter — its person(s) stay visible and the rest disappear, even
+    // after the mouse leaves any hitbox. Hovering another person
+    // temporarily previews their chapter, and on mouseleave we fall
+    // back to the locked chapter (not to "show all").
+    let lockedChapter: { slideIdx: number; chapter: number } | null = null;
+
+    // Rollover behavior: when the user hovers any person, the OTHER
+    // people in the current reunion fade out — only the hovered
+    // person's CHAPTER stays visible (so two people who share a story
+    // — Joseline & Julio in Peru, Pablo & Federico in Colombia — light
+    // up together as a pair). On mouseleave we restore all people of
+    // the active reunion (or fall back to the locked chapter).
+    function focusChapter(slideIdx: number, chapter: number) {
+      const layer = peopleLayers[slideIdx];
+      if (!layer) return;
+      layer.querySelectorAll<HTMLImageElement>(".s5-person-img").forEach((img) => {
+        const ch = Number(img.dataset.chapter);
+        img.classList.toggle("is-active", ch === chapter);
+      });
+    }
+    function showAllPeopleInSlide(slideIdx: number) {
+      const layer = peopleLayers[slideIdx];
+      if (!layer) return;
+      layer.querySelectorAll<HTMLImageElement>(".s5-person-img").forEach((img) => {
+        img.classList.add("is-active");
+      });
+    }
+
     document.querySelectorAll<HTMLElement>(".s5-hitbox").forEach((box) => {
-      box.addEventListener("mouseenter", () => setCursorPlayActive(true));
-      box.addEventListener("mouseleave", () => setCursorPlayActive(false));
-      // Click on the hitbox = play the active person's audio.
+      box.addEventListener("mouseenter", () => {
+        if (!box.classList.contains("is-hot")) return;
+        const layer = box.closest<HTMLElement>(".s5-hitbox-layer");
+        const slideIdx = Number(layer?.dataset.slide ?? -1);
+        const personIdx = Number(box.dataset.personIndex);
+        const chapter = Number(box.dataset.chapter);
+        if (slideIdx < 0 || Number.isNaN(personIdx)) return;
+        setCursorPlayActive(true);
+        focusChapter(slideIdx, chapter);
+        // Build the group of every person belonging to this chapter
+        // (one for solo chapters, two for shared ones). Tooltip shows
+        // both names + both signatures when shared.
+        const group = (slideData[slideIdx]?.people ?? []).filter(
+          (p) => p.chapter === chapter,
+        );
+        if (group.length) updateTooltip(group);
+      });
+      box.addEventListener("mouseleave", () => {
+        setCursorPlayActive(false);
+        const layer = box.closest<HTMLElement>(".s5-hitbox-layer");
+        const slideIdx = Number(layer?.dataset.slide ?? -1);
+        if (slideIdx < 0) return;
+        // If a chapter is locked for this slide, fall back to it
+        // instead of showing the whole reunion again.
+        if (lockedChapter && lockedChapter.slideIdx === slideIdx) {
+          focusChapter(slideIdx, lockedChapter.chapter);
+          const lockedGroup = (slideData[slideIdx]?.people ?? []).filter(
+            (p) => p.chapter === lockedChapter!.chapter,
+          );
+          if (lockedGroup.length) updateTooltip(lockedGroup);
+          return;
+        }
+        showAllPeopleInSlide(slideIdx);
+        hideTooltip();
+      });
+      // Click on the hitbox = play the hovered person's audio.
       box.addEventListener("click", () => {
         if (!box.classList.contains("is-hot")) return;
         tooltipAudio?.click();
       });
     });
 
+    // (Chapter click handling is consolidated below — search for
+    // "Chapter list clicks". The lock + focus is applied AFTER
+    // goToState's updatePanelToPerson re-shows everyone.)
+
     function hideTooltip() {
-      tooltipEl?.classList.remove("is-visible");
+      tooltipEls.forEach((el) => el.classList.remove("is-visible"));
     }
 
-    function updateTooltip(person: PersonData) {
-      if (!tooltipEl) return;
-      // Position by viewport percentages; tooltipOffsetY pushes vertically.
-      tooltipEl.style.left = `${person.tooltipLeft}%`;
-      tooltipEl.style.top = `calc(${person.tooltipTop}% + ${person.tooltipOffsetY}px)`;
-
-      // Name: typing reveal (same feel as the section-2 Interlude lead).
-      // Delay a touch so the tooltip can reach its new position first.
-      if (tooltipName) {
-        tooltipName.classList.add("is-visible");
-        tooltipName.textContent = "";
+    // Paint a single slot with one person's data (name typing + signature
+    // drawing). Slot 0 also owns the audiogram and audio source.
+    function paintTooltipSlot(slotIdx: number, person: PersonData) {
+      const el = tooltipEls[slotIdx];
+      if (!el) return;
+      el.style.left = `${person.tooltipLeft}%`;
+      el.style.top = `calc(${person.tooltipTop}% + ${person.tooltipOffsetY}px)`;
+      const nameEl = el.querySelector<HTMLElement>("[data-tooltip-name]");
+      const sigEl = el.querySelector<HTMLElement>("[data-tooltip-signature]");
+      if (nameEl) {
+        nameEl.classList.add("is-visible");
+        nameEl.textContent = "";
         setTimeout(() => {
-          typeText(tooltipName, person.name, { stagger: 0.035, duration: 0.4 });
+          typeText(nameEl, person.name, { stagger: 0.035, duration: 0.4 });
         }, 350);
       }
-
-      if (tooltipSig) {
-        // Reset "drawn" state. We delay the actual drawing slightly so the
-        // tooltip can settle in its new position first — then the signature
-        // visibly traces itself from left to right.
-        tooltipSig.classList.remove("is-drawing");
-        tooltipSig.innerHTML = person.signature
+      if (sigEl) {
+        sigEl.classList.remove("is-drawing");
+        sigEl.innerHTML = person.signature
           ? `<img src="${person.signature}" alt="${person.name}">`
           : "";
         if (person.signature) {
-          setTimeout(() => tooltipSig.classList.add("is-drawing"), 600);
+          setTimeout(() => sigEl.classList.add("is-drawing"), 600);
         }
       }
-      if (tooltipAudio) {
-        tooltipAudio.dataset.audio = person.audio || "";
+      el.classList.add("is-visible");
+    }
+
+    function updateTooltip(personOrGroup: PersonData | PersonData[]) {
+      if (!tooltipEl) return;
+      const group = Array.isArray(personOrGroup) ? personOrGroup : [personOrGroup];
+      const primary = group[0];
+      if (!primary) return;
+
+      // Slot 0 = primary (always). Slot 1 = secondary (only if the
+      // chapter has more than one person). Each tooltip is positioned
+      // independently using its own person's tooltipLeft/Top so they
+      // can sit on opposite sides of the shared subject.
+      paintTooltipSlot(0, primary);
+      if (group[1]) {
+        paintTooltipSlot(1, group[1]);
+      } else if (tooltipEls[1]) {
+        tooltipEls[1].classList.remove("is-visible");
       }
-      if (tooltipWave) {
-        tooltipWave.hidden = !person.audio;
-      }
+
+      // Audio + waveform live on the primary slot only.
+      if (tooltipAudio) tooltipAudio.dataset.audio = primary.audio || "";
+      if (tooltipWave) tooltipWave.hidden = !primary.audio;
       stopWaveformAnim();
-      tooltipEl.classList.add("is-visible");
     }
 
     function setPlayingState(on: boolean) {
@@ -1248,29 +1447,42 @@ const BARS_IDLE = (() => {
       const panel = panels[slideIdx];
       if (!panel) return;
 
+      // Drop the chapter lock when changing reunions — each reunion
+      // starts fresh with all its people visible.
+      if (lockedChapter && lockedChapter.slideIdx !== slideIdx) {
+        lockedChapter = null;
+      }
+
       // Highlight the active chapter (1-based) in the list.
       const chapterLis = panel.querySelectorAll<HTMLElement>(".reunion__chapters li");
       chapterLis.forEach((li, i) => {
         li.classList.toggle("is-active", i + 1 === person.chapter);
       });
 
-      // Only the people of the active chapter are visible (the rest hidden).
+      // All people in the active reunion stay visible from the start
+      // (matches the original porschereunions.com layout). Hovering any
+      // person still triggers the rollover/tooltip; the chapter only
+      // drives panel/cite UI now, not visibility.
       setActivePeopleLayer(slideIdx);
-      const layer = peopleLayers[slideIdx];
-      if (layer) {
-        layer.querySelectorAll<HTMLImageElement>(".s5-person-img").forEach((img) => {
-          const ch = Number(img.dataset.chapter);
-          img.classList.toggle("is-active", ch === person.chapter);
+      // Reset the is-active flag across EVERY reunion layer first,
+      // then re-enable only the people of the current one. Otherwise
+      // people from previously-viewed reunions stay flagged and become
+      // visible the moment their layer's opacity comes back.
+      peopleLayers.forEach((other, i) => {
+        other.querySelectorAll<HTMLImageElement>(".s5-person-img").forEach((img) => {
+          img.classList.toggle("is-active", i === slideIdx);
         });
-      }
+      });
       // Activate the hover hitbox(es) for this chapter.
       setActiveHitboxes(slideIdx, person.chapter);
       // Hide the play cursor when the active person changes — it will
       // re-appear when the user moves the mouse over the new hitbox.
       setCursorPlayActive(false);
 
-      // Tooltip with name, signature, audio — positioned over the person.
-      updateTooltip(person);
+      // No automatic tooltip on slide-change. The tooltip only shows
+      // when the user hovers a person OR clicks a chapter — never as
+      // a "default" floating over the freshly-arrived reunion.
+      hideTooltip();
     }
 
     // Initial state.
@@ -1282,7 +1494,10 @@ const BARS_IDLE = (() => {
     dots.forEach((d, i) => d.addEventListener("click", () => goToStateForSlide(i)));
 
     // Chapter list clicks: jump to the first state of this slide whose
-    // person belongs to that chapter.
+    // person belongs to that chapter, then LOCK the chapter so only
+    // its person(s) stay visible (the rest of the reunion fades out
+    // just like a rollover). The lock survives mouseleave; it's
+    // cleared when the user navigates to a different reunion.
     panels.forEach((panel, slideIdx) => {
       const chapterLis = panel.querySelectorAll<HTMLElement>(".reunion__chapters li");
       chapterLis.forEach((li) => {
@@ -1295,6 +1510,16 @@ const BARS_IDLE = (() => {
               slideData[slideIdx].people[s.personIdx]?.chapter === chapterNum,
           );
           if (targetState >= 0) goToState(targetState);
+
+          // Lock + focus AFTER goToState (whose updatePanelToPerson
+          // re-shows every person of the slide); otherwise the
+          // focusChapter we're about to call would be wiped out.
+          lockedChapter = { slideIdx, chapter: chapterNum };
+          focusChapter(slideIdx, chapterNum);
+          const group = (slideData[slideIdx]?.people ?? []).filter(
+            (p) => p.chapter === chapterNum,
+          );
+          if (group.length) updateTooltip(group);
         });
       });
 
@@ -1480,6 +1705,14 @@ const BARS_IDLE = (() => {
       const start = performance.now();
       const duration = 950;
       animating = true;
+      // Hide every UI overlay (panels, chapters, tooltips, dots, play
+      // disc) while the canvas owns the viewport. Re-show on complete.
+      setTransitionMaskActive(true);
+      // Freeze Lenis so the page underneath cannot drift while the
+      // canvas is animating — otherwise Gallery would visibly scroll
+      // behind a half-transparent blob.
+      const lenisFreeze = getLenis();
+      lenisFreeze?.stop?.();
       function tick(now: number) {
         const raw = Math.min(1, (now - start) / duration);
         const eased = transitionEase(raw);
@@ -1491,6 +1724,8 @@ const BARS_IDLE = (() => {
           requestAnimationFrame(tick);
         } else {
           animating = false;
+          setTransitionMaskActive(false);
+          lenisFreeze?.start?.();
           onComplete?.();
         }
       }
@@ -1523,72 +1758,77 @@ const BARS_IDLE = (() => {
       const lenis = getLenis();
       if (lenis?.scrollTo) lenis.scrollTo(galleryAnchorY, { immediate: true });
       else window.scrollTo({ top: galleryAnchorY, behavior: "auto" });
+      // Hard-stop ALL scroll: Lenis + native + body overflow. Wheel
+      // events still fire (so feedGalleryEffort can accumulate), but
+      // the viewport cannot move.
       lenis?.stop?.();
+      document.documentElement.style.overflow = "hidden";
+      document.body.style.overflow = "hidden";
     }
 
     function unlockGallery() {
       if (!galleryLocked) return;
       galleryLocked = false;
       galleryEffort = 0;
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
       getLenis()?.start?.();
     }
 
-    function transitionToGallery() {
+    async function transitionToGallery() {
       if (inGalleryState) return;
       inGalleryState = true;
+      document.body.classList.add("s5-in-gallery");
       hideAllPeopleLayers();
       hideTooltip();
 
-      // 1. Jump-scroll to the real Gallery section.
+      if (!blobTrans) {
+        // No blob overlay available — fall back to a hard jump.
+        const gallery = document.getElementById("gallery");
+        if (gallery) {
+          const lenis = getLenis();
+          if (lenis?.scrollTo) lenis.scrollTo(gallery, { immediate: true });
+          else gallery.scrollIntoView({ behavior: "auto", block: "start" });
+          galleryAnchorY = gallery.offsetTop;
+        }
+        lockGallery();
+        return;
+      }
+
+      setTransitionMaskActive(true);
+      // Freeze every kind of scroll so the user can't drift while
+      // the blob is animating — Lenis, native, AND the body.
+      const lenis = getLenis();
+      lenis?.stop?.();
+      const prevHtmlOverflow = document.documentElement.style.overflow;
+      const prevBodyOverflow = document.body.style.overflow;
+      document.documentElement.style.overflow = "hidden";
+      document.body.style.overflow = "hidden";
+
+      await blobTrans.play("in");
+      // Snap to Gallery while it's hidden under the mask.
       const gallery = document.getElementById("gallery");
       if (gallery) {
-        const lenis = getLenis();
         if (lenis?.scrollTo) lenis.scrollTo(gallery, { immediate: true });
         else gallery.scrollIntoView({ behavior: "auto", block: "start" });
         galleryAnchorY = gallery.offsetTop;
       }
+      await blobTrans.play("out");
 
-      // 2. Lift the stage as a fullscreen overlay above the Gallery.
-      setStageOverlay(true);
-      setStageVisible(true, true);
-
-      // 3. Reveal mode + last-reunion image as textureA.
-      revealMode = 1;
-      const lastSlide = states[states.length - 1].slide;
-      animFrom = lastSlide;
-      animTo = lastSlide;
-
-      // 4. Animate the blob mask 0→1: canvas opens, Gallery shows behind.
-      runRevealAnimation(true, () => {
-        // Drop overlay mode and repaint the canvas with the last
-        // reunion image (revealMode=0, progress=0) — but KEEP the stage
-        // visible. Sticky-pinned at the wrapper's end, it sits just
-        // above Gallery; the moment the user starts scrolling up it
-        // glides into view showing the last car, instead of a black
-        // gap. The back handoff only fires once the user has dragged
-        // GALLERY_BACK_MARGIN past the anchor.
-        setStageOverlay(false);
-        revealMode = 0;
-        progress = 0;
-        animFrom = lastSlide;
-        animTo = lastSlide;
-        currentIdx = lastSlide;
-        displayIdx = lastSlide;
-        render();
-        setStageVisible(true, true);
-        handoffCooldown = performance.now() + 600;
-        // Lock the viewport on Gallery. From now on wheel/touch effort
-        // accumulates but the section stays centered until the user
-        // crosses GALLERY_MARGIN in either direction.
-        lockGallery();
-      });
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      document.body.style.overflow = prevBodyOverflow;
+      setTransitionMaskActive(false);
+      handoffCooldown = performance.now() + 600;
+      // lockGallery handles lenis.start() internally for the Gallery
+      // effort state.
+      lockGallery();
     }
 
     // No reverse blob effect — the moment we detect a scroll-up from
     // Gallery, jump straight to the last reunion's sticky slot so the
     // viewport never falls into the empty wrapper gap (which is what
     // produced the black flash). Then resume normal state-machine scroll.
-    function transitionBackFromGallery() {
+    async function transitionBackFromGallery() {
       if (!inGalleryState) return;
       const lastSlide = states[states.length - 1].slide;
       if (!textures[lastSlide] || !reunionsEl) return;
@@ -1596,28 +1836,60 @@ const BARS_IDLE = (() => {
       currentStateIdx = states.length - 1;
       unlockGallery();
 
-      // Make sure the stage isn't stuck in fixed-overlay mode and is
-      // visible — it should be sticky-pinned to the top of the viewport
-      // showing the last reunion image.
-      setStageOverlay(false);
-      revealMode = 0;
-      progress = 0;
+      const lenis = getLenis();
+
+      if (!blobTrans) {
+        const span = reunionsEl.offsetHeight - window.innerHeight;
+        // Land deep in Reunions (close to where we left it before the
+// handoff) so the visible viewport stays on the last reunion and
+// Gallery sits safely below — the user doesn't see Colombia/the
+// middle of the section.
+const targetY = reunionsEl.offsetTop + span * 0.82;
+        if (lenis?.scrollTo) lenis.scrollTo(targetY, { immediate: true });
+        else window.scrollTo({ top: targetY, behavior: "auto" });
+        document.body.classList.remove("s5-in-gallery");
+        return;
+      }
+
+      setTransitionMaskActive(true);
+      // Freeze EVERY scroll source for the entire animation.
+      lenis?.stop?.();
+      const prevHtmlOverflowR = document.documentElement.style.overflow;
+      const prevBodyOverflowR = document.body.style.overflow;
+      document.documentElement.style.overflow = "hidden";
+      document.body.style.overflow = "hidden";
+
+      await blobTrans.play("in");
+
+      // Swap viewport to Reunions while it's hidden under the mask.
       animFrom = lastSlide;
       animTo = lastSlide;
       currentIdx = lastSlide;
       displayIdx = lastSlide;
+      progress = 0;
+      revealMode = 0;
       render();
-      setStageVisible(true, true);
-
-      // Jump instantly to a position inside Reunions where the sticky
-      // stage is pinned and the last reunion's tick is active.
-      const lenis = getLenis();
       const span = reunionsEl.offsetHeight - window.innerHeight;
-      const targetY = reunionsEl.offsetTop + span * 0.82;
+      // Land deep in Reunions (close to where we left it before the
+// handoff) so the visible viewport stays on the last reunion and
+// Gallery sits safely below — the user doesn't see Colombia/the
+// middle of the section.
+const targetY = reunionsEl.offsetTop + span * 0.82;
       if (lenis?.scrollTo) lenis.scrollTo(targetY, { immediate: true });
       else window.scrollTo({ top: targetY, behavior: "auto" });
-
       updatePanelToPerson(lastSlide, states[currentStateIdx].personIdx);
+
+      // Phase 2: mask shrinks → Reunions visible. Clear the gallery
+      // body flag AFTER the mask is fully closed so floating UI
+      // (cursor disc, tooltip) only appears once the section is
+      // really on screen.
+      document.body.classList.remove("s5-in-gallery");
+      await blobTrans.play("out");
+
+      document.documentElement.style.overflow = prevHtmlOverflowR;
+      document.body.style.overflow = prevBodyOverflowR;
+      setTransitionMaskActive(false);
+      lenis?.start?.();
       handoffCooldown = performance.now() + 400;
     }
 
@@ -1645,6 +1917,47 @@ const BARS_IDLE = (() => {
         goToState(target);
       }
     }
+    // ──────────────────────────────────────────────────────────────────
+    // External control mode: when a master controller (e.g. the
+    // /explore section-slider) owns scrolling, Reunions exposes a small
+    // API to switch slides instantly and DOES NOT attach its own
+    // scroll/wheel/touch listeners (which would fight the controller).
+    // ──────────────────────────────────────────────────────────────────
+    type ReunionsWin = Window &
+      typeof globalThis & {
+        __reunionsExternalControl?: boolean;
+        reunionsSlider?: {
+          slideCount: number;
+          setSlideInstant: (idx: number) => void;
+        };
+      };
+    const rWin = window as ReunionsWin;
+
+    function setSlideInstant(slideIdx: number) {
+      const clamped = Math.max(0, Math.min(states.length - 1, slideIdx));
+      const slide = states[clamped].slide;
+      currentIdx = slide;
+      displayIdx = slide;
+      animFrom = slide;
+      animTo = slide;
+      progress = 0;
+      revealMode = 0;
+      currentStateIdx = clamped;
+      render();
+      dots.forEach((d, i) => d.classList.toggle("is-active", i === slide));
+      panels.forEach((p, i) => p.classList.toggle("is-active", i === slide));
+      updatePanelToPerson(slide, states[clamped].personIdx);
+    }
+
+    if (rWin.__reunionsExternalControl) {
+      rWin.reunionsSlider = {
+        slideCount: states.length,
+        setSlideInstant,
+      };
+      // Skip every internal scroll/wheel/touch listener. The master
+      // controller drives everything.
+    } else {
+
     window.addEventListener("scroll", onPageScroll, { passive: true });
 
     // Scroll-lock effort accumulator. While the Gallery is locked,
@@ -1681,8 +1994,13 @@ const BARS_IDLE = (() => {
 
     window.addEventListener(
       "wheel",
-      (e: WheelEvent) => feedGalleryEffort(e.deltaY),
-      { passive: true },
+      (e: WheelEvent) => {
+        // While Gallery is the active "blocked" section, kill the
+        // native scroll so the viewport can't drift even a pixel.
+        if (galleryLocked) e.preventDefault();
+        feedGalleryEffort(e.deltaY);
+      },
+      { passive: false },
     );
 
     // Touch: convert finger drag distance into the same effort unit.
@@ -1717,4 +2035,6 @@ const BARS_IDLE = (() => {
     // Initial sync: in case the page loads with the section already in
     // view (e.g. hash, refresh mid-page), compute the correct state.
     requestAnimationFrame(onPageScroll);
+
+    } // end of internal-control block (else of __reunionsExternalControl)
   </script>

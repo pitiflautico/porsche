@@ -1,0 +1,261 @@
+---
+// Sandbox to validate "sliders inside a slider":
+//   Section A → single image
+//   Section B → inner slider with 3 slides
+//   Section C → the REAL Gallery component (section 6)
+// One wheel/touch accumulator drives a hierarchical model: wheel
+// advances the inner slide; when you reach the inner edge, the next
+// wheel step crosses to the adjacent section. Every section change
+// plays the pixelvault-style curtain transition. No scrolling.
+import "../styles/global.scss";
+import Gallery from "../components/sections/Gallery/Gallery.astro";
+import ReunionsV2 from "../components/sections/ReunionsV2/ReunionsV2.astro";
+import { t, type Locale } from "../i18n/utils";
+
+const locale: Locale = "es";
+---
+
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Test — nested sliders</title>
+    <style is:global>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; overflow: hidden; background: #000; font-family: system-ui, sans-serif; color: #fff; }
+
+      .layer {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        z-index: 1;
+      }
+      .layer.is-active { opacity: 1; visibility: visible; z-index: 2; }
+
+      .layer img { width: 100%; height: 100%; object-fit: cover; }
+
+      /* The real Gallery / Reunions sections fill the layer. */
+      .layer #gallery,
+      .layer .section-gallery,
+      .layer #reunions {
+        position: relative !important;
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 100% !important;
+        max-height: 100% !important;
+        inset: auto !important;
+      }
+
+      /* Inner slides: only one shown per section. */
+      .slide {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: clamp(3rem, 12vw, 12rem);
+        font-weight: 800;
+        letter-spacing: 0.05em;
+      }
+
+      /* Section B inner transition — HORIZONTAL SLIDE. */
+      [data-section="B"] .slide {
+        opacity: 1;
+        transform: translateX(100%);
+        transition: transform 0.6s cubic-bezier(0.7, 0, 0.3, 1);
+      }
+      [data-section="B"] .slide.is-active { transform: translateX(0); }
+      [data-section="B"] .slide.is-prev { transform: translateX(-100%); }
+
+      /* Section C inner transition — FADE + ZOOM. */
+      [data-section="C"] .slide {
+        opacity: 0;
+        transform: scale(1.18);
+        transition: opacity 0.6s ease, transform 0.7s ease;
+      }
+      [data-section="C"] .slide.is-active { opacity: 1; transform: scale(1); }
+      [data-section="C"] .slide.is-prev { opacity: 0; transform: scale(0.9); }
+
+      .label {
+        position: absolute;
+        top: 24px;
+        left: 24px;
+        font-size: 12px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        opacity: 0.7;
+        z-index: 3;
+      }
+      .hint {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 12px;
+        letter-spacing: 0.15em;
+        opacity: 0.5;
+        z-index: 10000;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    {/* Set external-control flag before the component module scripts
+        run, so Reunions exposes its API and skips its own listeners. */}
+    <script is:inline>
+      window.__reunionsExternalControl = true;
+    </script>
+
+    {/* Section A — single image */}
+    <section class="layer" data-section="A">
+      <span class="label">Section A — image</span>
+      <img src="/images/quotes/porsche-911-clasico-gris-garaje-urbano.jpg" alt="" />
+    </section>
+
+    {/* Section B — the REAL Reunions (section 5). Its 3 cars are inner
+        slides driven by the master slider; every car change uses the
+        same pixelvault curtain. */}
+    <div class="layer" data-section="B" data-reunions>
+      <span class="label">Section B — Reunions (real)</span>
+      <ReunionsV2 locale={locale} />
+    </div>
+
+    {/* Section C — the REAL Gallery (section 6). Wrapped in a .layer
+        so the master slider treats it as one section; Gallery's own
+        slider (prev/next arrows) handles its internal navigation. */}
+    <div class="layer" data-section="C">
+      <span class="label">Section C — Gallery (real)</span>
+      <Gallery
+        locale={locale}
+        prevLabel={t(locale, "home.galleryPrev")}
+        nextLabel={t(locale, "home.galleryNext")}
+      />
+    </div>
+
+    <div class="hint">scroll / arrows ↑ ↓</div>
+    <canvas id="blob" style="position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;opacity:0;"></canvas>
+
+    <script>
+      import { BlobTransition } from "../scripts/blob-transition";
+
+      type ReunionsSlider = {
+        slideCount: number;
+        setSlideInstant: (idx: number) => void;
+      };
+      type TestWin = Window &
+        typeof globalThis & { reunionsSlider?: ReunionsSlider };
+
+      const blobCanvas = document.getElementById("blob") as HTMLCanvasElement;
+      const sectionEls = Array.from(
+        document.querySelectorAll<HTMLElement>(".layer"),
+      );
+
+      function whenReady(cb: () => void, tries = 0) {
+        const w = window as TestWin;
+        if (w.reunionsSlider) cb();
+        else if (tries < 120) setTimeout(() => whenReady(cb, tries + 1), 50);
+        else console.warn("[test] reunionsSlider never ready");
+      }
+
+      whenReady(() => {
+        const w = window as TestWin;
+        const slider = w.reunionsSlider!;
+        const blob = new BlobTransition({
+          canvas: blobCanvas,
+          color: "#000000",
+          duration: 1500,
+        });
+
+        // Build the flat step list. The Reunions layer (data-reunions)
+        // contributes slideCount steps; every other layer is one step.
+        type Step = { sectionIdx: number; slide: number; reunions: boolean };
+        const steps: Step[] = [];
+        sectionEls.forEach((el, si) => {
+          const isReunions = el.hasAttribute("data-reunions");
+          const n = isReunions ? slider.slideCount : 1;
+          for (let s = 0; s < n; s++) {
+            steps.push({ sectionIdx: si, slide: s, reunions: isReunions });
+          }
+        });
+
+        let stepIdx = 0;
+        let effort = 0;
+        let animating = false;
+        const MARGIN = () => Math.round(window.innerHeight * 0.5);
+
+        function showStep(idx: number) {
+          const step = steps[idx];
+          sectionEls.forEach((el, si) => {
+            el.classList.toggle("is-active", si === step.sectionIdx);
+          });
+          if (step.reunions) slider.setSlideInstant(step.slide);
+        }
+        showStep(0);
+
+        // EVERY step (cross-section AND Reunions car-to-car) uses the
+        // same pixelvault curtain: instant full black, swap underneath,
+        // then dissolve from the center to reveal.
+        async function goStep(next: number) {
+          if (next < 0 || next >= steps.length || next === stepIdx) return;
+          animating = true;
+          effort = 0;
+          blobCanvas.style.opacity = "1";
+          blob.setProgress(0); // instant full curtain (covered)
+          showStep(next); // swap hidden underneath
+          stepIdx = next;
+          await blob.play("out"); // dissolve from center → reveal
+          blobCanvas.style.opacity = "0";
+          animating = false;
+        }
+
+        function feed(delta: number) {
+          if (animating) return;
+          effort += delta;
+          const m = MARGIN();
+          if (effort >= m) {
+            effort = 0;
+            goStep(stepIdx + 1);
+          } else if (effort <= -m) {
+            effort = 0;
+            goStep(stepIdx - 1);
+          }
+        }
+
+        window.addEventListener(
+          "wheel",
+          (e: WheelEvent) => {
+            e.preventDefault();
+            feed(e.deltaY);
+          },
+          { passive: false },
+        );
+
+        let lastTouchY: number | null = null;
+        window.addEventListener("touchstart", (e: TouchEvent) => {
+          lastTouchY = e.touches[0]?.clientY ?? null;
+        }, { passive: true });
+        window.addEventListener("touchmove", (e: TouchEvent) => {
+          if (lastTouchY === null) return;
+          e.preventDefault();
+          const y = e.touches[0]?.clientY ?? lastTouchY;
+          feed(lastTouchY - y);
+          lastTouchY = y;
+        }, { passive: false });
+
+        window.addEventListener("keydown", (e: KeyboardEvent) => {
+          if (animating) return;
+          if (e.key === "ArrowDown") goStep(stepIdx + 1);
+          else if (e.key === "ArrowUp") goStep(stepIdx - 1);
+        });
+
+        console.log("[test] ready", { totalSteps: steps.length });
+      });
+    </script>
+  </body>
+</html>

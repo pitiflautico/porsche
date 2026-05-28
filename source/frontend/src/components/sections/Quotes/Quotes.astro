@@ -160,10 +160,15 @@ const country6 = t(locale, "quotes.6.country");
       (el) => new SplitText(el, { type: "chars", charsClass: "slogan__char" }),
     );
 
-    // Hide all chars below their clip containers
+    // Hide all chars below their clip containers, tilted back on the X
+    // axis so the entrance reads as "curved → flat" (chars come in
+    // facing slightly downward and rotate up to face the camera).
     splits.forEach((split) => {
       gsap.set(split.chars, {
         yPercent: 115,
+        rotateX: -65,
+        transformPerspective: 900,
+        transformOrigin: "50% 100%",
         filter: "blur(8px)",
         opacity: 0,
       });
@@ -175,12 +180,20 @@ const country6 = t(locale, "quotes.6.country");
       gsap.killTweensOf(chars);
       gsap.fromTo(
         chars,
-        { yPercent: 115, filter: "blur(8px)", opacity: 0 },
+        {
+          yPercent: 115,
+          rotateX: -65,
+          transformPerspective: 900,
+          transformOrigin: "50% 100%",
+          filter: "blur(8px)",
+          opacity: 0,
+        },
         {
           yPercent: 0,
+          rotateX: 0,
           filter: "blur(0px)",
           opacity: 1,
-          duration: 0.8,
+          duration: 0.9,
           ease: "power3.out",
           stagger: 0.055,
           delay,
@@ -192,7 +205,9 @@ const country6 = t(locale, "quotes.6.country");
       gsap.killTweensOf(chars);
       gsap.to(chars, {
         yPercent: direction === "up" ? -110 : 110,
+        rotateX: direction === "up" ? 65 : -65,
         filter: "blur(8px)",
+        opacity: 0,
         duration: 0.5,
         ease: "power2.in",
         stagger: { each: 0.04, from: direction === "up" ? "start" : "end" },
@@ -216,10 +231,13 @@ const country6 = t(locale, "quotes.6.country");
       if (index >= 0) wordIn(splits[index].chars, prev >= 0 ? 0.15 : 0);
     }
 
-    // First word triggers when section enters viewport
+    // First word triggers when the section actually lands at the top
+    // of the viewport (not 85% — at 85% the section is still hidden
+    // behind the Interlude pin space, so the "THERE" entrance plays
+    // off-screen and the user lands on already-finished text).
     ScrollTrigger.create({
       trigger: section,
-      start: "top 85%",
+      start: "top top",
       onEnter: () => showWord(0, true),
       onLeaveBack: () => {
         if (currentWord === 0) {
@@ -273,7 +291,8 @@ const country6 = t(locale, "quotes.6.country");
   });
 
   function initQuoteTextReveals() {
-    // Quote body text — chars cascade up with a micro-rotation
+    // Quote body text — chars cascade up with a micro-rotation.
+    // Reversible: scroll down plays the reveal, scroll back up undoes it.
     const quotePs = gsap.utils.toArray<HTMLElement>(".quote__text > p");
     quotePs.forEach((el) => {
       const split = new SplitText(el, {
@@ -285,26 +304,30 @@ const country6 = t(locale, "quotes.6.country");
       gsap.set(split.chars, { yPercent: 30, opacity: 0, rotateZ: 6 });
       gsap.set(el, { filter: "blur(6px)" });
 
-      ScrollTrigger.create({
-        trigger: el,
-        start: "top 88%",
-        once: true,
-        onEnter: () => {
-          gsap.to(split.chars, {
-            yPercent: 0,
-            opacity: 1,
-            rotateZ: 0,
-            duration: 0.75,
-            ease: "power3.out",
-            stagger: 0.018,
-          });
-          gsap.to(el, {
-            filter: "blur(0px)",
-            duration: 0.9,
-            ease: "power2.out",
-          });
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: el,
+          start: "top 75%",
+          toggleActions: "play none none reverse",
         },
       });
+      tl.to(split.chars, {
+        yPercent: 0,
+        opacity: 1,
+        rotateZ: 0,
+        duration: 0.75,
+        ease: "power3.out",
+        stagger: 0.018,
+      });
+      tl.to(
+        el,
+        {
+          filter: "blur(0px)",
+          duration: 0.9,
+          ease: "power2.out",
+        },
+        0,
+      );
     });
 
     // Author / cite — words slide in horizontally, delayed after the quote text
@@ -317,19 +340,17 @@ const country6 = t(locale, "quotes.6.country");
 
       gsap.set(split.words, { xPercent: -30, opacity: 0 });
 
-      ScrollTrigger.create({
-        trigger: el,
-        start: "top 88%",
-        once: true,
-        onEnter: () => {
-          gsap.to(split.words, {
-            xPercent: 0,
-            opacity: 1,
-            duration: 0.85,
-            ease: "power2.out",
-            stagger: 0.1,
-            delay: 0.5,
-          });
+      gsap.to(split.words, {
+        xPercent: 0,
+        opacity: 1,
+        duration: 0.85,
+        ease: "power2.out",
+        stagger: 0.1,
+        delay: 0.5,
+        scrollTrigger: {
+          trigger: el,
+          start: "top 75%",
+          toggleActions: "play none none reverse",
         },
       });
     });
@@ -345,78 +366,85 @@ const country6 = t(locale, "quotes.6.country");
   function initImageCardEntrance() {
     const images = gsap.utils.toArray<HTMLElement>(".quote__image");
 
-    // Outer frame speeds (each card on its own "plane"). Indices 1–4
-    // are the overlapping pair blocks (images 2-3 and 4-5) — bumped
-    // up so the cards visibly overlap/slide past each other.
-    const frameSpeeds = [-3, -24, -15, -32, -18, -9];
-    // Inner photo speeds — kept close to the original so the photo
-    // doesn't drift inside its frame (that read "fatal" at higher values).
-    const innerSpeeds = [-9, -16, -11, -20, -13, -15];
+    // Force preserve-3d up the ancestor chain so rotateX renders in 3D
+    // instead of being flattened by an intermediate stacking context.
+    gsap.set(".testimonials, .quotes, .quote", {
+      transformStyle: "preserve-3d",
+    });
 
-    images.forEach((picture, i) => {
-      gsap.set(picture, {
-        rotateX: -55,
-        scale: 0.86,
-        opacity: 0,
-        filter: "blur(10px)",
-        transformPerspective: 1600,
-        transformOrigin: "center 65%",
-      });
+    images.forEach((picture) => {
+      // Roller-shade entrance bound to the parent .quote (NOT the
+      // picture itself). The picture is position:absolute with negative
+      // top offsets — its getBoundingClientRect lives way above where
+      // the user actually sees it, so triggers using the picture as
+      // reference fired before Quotes was on screen and the scrub
+      // landed at 100% (image already flat). .quote is position:relative
+      // with min-height:100vh, so its bounding rect matches the visible
+      // viewport position.
+      const triggerEl = picture.closest<HTMLElement>(".quote") ?? picture;
 
-      ScrollTrigger.create({
-        trigger: picture,
-        start: "top 92%",
-        once: true,
-        onEnter: () => {
-          gsap.to(picture, {
-            rotateX: 0,
-            scale: 1,
-            opacity: 1,
-            filter: "blur(0px)",
-            duration: 1.8,
-            ease: "power3.out",
-          });
+      // True unroll: clip-path masks the image from the top down (so
+      // the bottom edge appears first, then the rest "rolls out"), plus
+      // a tilt + slight scaleY + blur that resolve as the image lands.
+      // That combination reads as paper unfurling, not a flat resize.
+      // True unroll: mask recedes from the BOTTOM (the top edge of the
+      // image emerges first, then the rest unfolds downward — like a
+      // blind dropping from a roller). Add a small rotateX + scaleY +
+      // blur that all resolve as the unroll completes, so it reads as
+      // paper unfurling, not a flat resize.
+      // Image starts small, far back in the depth, lying face-DOWN on
+      // a horizontal plane and pinned by its top edge — we only see
+      // the line of its upper border from the front. As the user
+      // scrolls, the bottom edge rotates DOWN toward the viewer and
+      // the card unfurls from TOP to BOTTOM (because the top is
+      // anchored by transformOrigin: center top). At the same time it
+      // grows from scale 0.6 → 1 and pulls forward in z, so it reads
+      // as "coming up from the back, unrolling top-down, landing flat
+      // and frontal".
+      gsap.fromTo(
+        picture,
+        {
+          rotateX: -90,
+          z: -200,
+          scale: 0.6,
+          opacity: 0,
+          filter: "blur(10px)",
+          transformPerspective: 800,
+          transformOrigin: "center top",
         },
-      });
-
-      // Outer parallax — the whole card drifts up slowly while scrolling.
-      gsap.to(picture, {
-        yPercent: frameSpeeds[i % frameSpeeds.length],
-        ease: "none",
-        scrollTrigger: {
-          trigger: picture,
-          start: "top bottom",
-          end: "bottom top",
-          scrub: true,
-        },
-      });
-
-      // Inner parallax — the image inside drifts at a different (faster) speed.
-      const img = picture.querySelector<HTMLElement>("img");
-      if (img) {
-        gsap.to(img, {
-          yPercent: innerSpeeds[i % innerSpeeds.length],
-          ease: "none",
+        {
+          rotateX: 0,
+          z: 0,
+          scale: 1,
+          opacity: 1,
+          filter: "blur(0px)",
+          ease: "sine.out",
           scrollTrigger: {
-            trigger: picture,
-            start: "top bottom",
-            end: "bottom top",
-            scrub: true,
+            trigger: triggerEl,
+            start: "top 85%",
+            end: "top 30%",
+            scrub: 0.6,
+            invalidateOnRefresh: true,
           },
-        });
-      }
+        },
+      );
     });
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => {
-      initSloganAnimation();
-      initQuoteTextReveals();
-      initImageCardEntrance();
-    });
-  } else {
+  function bootQuotes() {
     initSloganAnimation();
     initQuoteTextReveals();
     initImageCardEntrance();
+    // Run AFTER `load` (not just DOMContentLoaded) so Hero's pins
+    // (which add ~320vh of pinSpacing) are already laid out — and
+    // refresh once more for safety so every ScrollTrigger here picks
+    // up the final document height.
+    requestAnimationFrame(() => ScrollTrigger.refresh());
+  }
+
+  if (document.readyState === "complete") {
+    bootQuotes();
+  } else {
+    window.addEventListener("load", bootQuotes, { once: true });
   }
 </script>

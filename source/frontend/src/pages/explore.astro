@@ -1,0 +1,231 @@
+---
+// Sandbox: a UNIFIED section-slider. Sections 4 (Quotes last image),
+// 5 (Reunions) and 6 (Gallery) are stacked as fixed full-viewport
+// layers; only one is visible at a time. The document never scrolls.
+// A single wheel/touch accumulator advances a global step index
+// (quotes → reunions slide 0/1/2 → gallery) and every step plays the
+// same black ink-blot transition. Reunions runs in "external control"
+// mode: it exposes window.reunionsSlider and skips its own scroll
+// listeners.
+import BaseLayout from "../layouts/BaseLayout.astro";
+import ReunionsV2 from "../components/sections/ReunionsV2/ReunionsV2.astro";
+import Gallery from "../components/sections/Gallery/Gallery.astro";
+import { t, type Locale } from "../i18n/utils";
+
+const locale: Locale = "es";
+---
+
+<BaseLayout
+  title="Explore — unified section slider"
+  description=""
+  ogTitle=""
+  ogDescription=""
+  locale={locale}
+  current="home"
+  pointer={true}
+  noIntro={true}
+>
+  {/* Runs during body parsing, BEFORE the deferred component module
+      scripts — so Reunions sees the flag at init and skips its own
+      scroll listeners. */}
+  <script is:inline>
+    window.__reunionsExternalControl = true;
+  </script>
+
+  <section
+    id="quotes-last"
+    class="ex-layer"
+    style="background:#0c0c0c;display:flex;align-items:center;justify-content:center;"
+  >
+    <img
+      src="/images/quotes/porsche-911-clasico-gris-garaje-urbano.jpg"
+      alt=""
+      style="width:100%;height:100%;object-fit:cover;"
+    />
+  </section>
+
+  <ReunionsV2 locale={locale} />
+
+  <Gallery
+    locale={locale}
+    prevLabel={t(locale, "home.galleryPrev")}
+    nextLabel={t(locale, "home.galleryNext")}
+  />
+
+  <canvas
+    id="explore-blob-canvas"
+    style="position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;opacity:0;"
+  ></canvas>
+
+  <style is:global>
+    /* All three sections become fixed full-viewport layers, stacked.
+       Only the active one is visible/interactive. The page itself
+       never scrolls. */
+    html, body { overflow: hidden !important; height: 100%; }
+    .ex-layer,
+    #reunions,
+    #gallery {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      min-height: 100vh !important;
+      max-height: 100vh !important;
+      margin: 0 !important;
+      opacity: 0;
+      visibility: hidden;
+      transition: none;
+      z-index: 1;
+    }
+    .ex-layer.is-active,
+    #reunions.is-active,
+    #gallery.is-active {
+      opacity: 1;
+      visibility: visible;
+      z-index: 2;
+    }
+  </style>
+
+  <script>
+    import { BlobTransition } from "../scripts/blob-transition";
+
+    type ReunionsSlider = {
+      slideCount: number;
+      setSlideInstant: (idx: number) => void;
+    };
+    type LenisLike = { stop?: () => void; start?: () => void };
+    type SliderWin = Window &
+      typeof globalThis & {
+        reunionsSlider?: ReunionsSlider;
+        lenis?: LenisLike;
+      };
+
+    const canvasEl = document.getElementById(
+      "explore-blob-canvas",
+    ) as HTMLCanvasElement | null;
+    const quotesEl = document.getElementById("quotes-last");
+    const reunionsEl = document.getElementById("reunions");
+    const galleryEl = document.getElementById("gallery");
+
+    function whenReady(cb: () => void, tries = 0) {
+      const w = window as SliderWin;
+      if (w.reunionsSlider && canvasEl && quotesEl && reunionsEl) cb();
+      else if (tries < 100) setTimeout(() => whenReady(cb, tries + 1), 50);
+      else console.warn("[explore] slider deps never became ready");
+    }
+
+    whenReady(() => {
+      const w = window as SliderWin;
+      const slider = w.reunionsSlider!;
+      const slideCount = slider.slideCount; // reunions internal slides
+      // Kill Lenis for good — nothing in this page scrolls.
+      w.lenis?.stop?.();
+      const blob = new BlobTransition({
+        canvas: canvasEl!,
+        color: "#000000",
+        duration: 850,
+      });
+
+      // Global step model:
+      //   0                         → quotes
+      //   1 .. slideCount           → reunions slide (step-1)
+      //   slideCount + 1            → gallery
+      const QUOTES = 0;
+      const GALLERY = slideCount + 1;
+      const MAX_STEP = GALLERY;
+
+      let step = QUOTES;
+      let effort = 0;
+      let animating = false;
+      const MARGIN = () => Math.round(window.innerHeight * 0.5);
+
+      function layerFor(s: number): HTMLElement | null {
+        if (s === QUOTES) return quotesEl;
+        if (s === GALLERY) return galleryEl;
+        return reunionsEl; // any reunions slide
+      }
+
+      function showStep(s: number) {
+        // Toggle which fixed layer is active.
+        [quotesEl, reunionsEl, galleryEl].forEach((el) =>
+          el?.classList.remove("is-active"),
+        );
+        layerFor(s)?.classList.add("is-active");
+        // If it's a reunions slide, set it instantly.
+        if (s >= 1 && s <= slideCount) {
+          slider.setSlideInstant(s - 1);
+        }
+      }
+
+      // Initial paint.
+      showStep(QUOTES);
+
+      async function goStep(next: number) {
+        if (next < 0 || next > MAX_STEP || next === step) return;
+        animating = true;
+        effort = 0;
+        canvasEl!.style.opacity = "1";
+        await blob.play("in");
+        showStep(next);
+        step = next;
+        await blob.play("out");
+        canvasEl!.style.opacity = "0";
+        animating = false;
+      }
+
+      function feed(delta: number) {
+        if (animating) return;
+        effort += delta;
+        const m = MARGIN();
+        if (effort >= m) {
+          effort = 0;
+          goStep(step + 1);
+        } else if (effort <= -m) {
+          effort = 0;
+          goStep(step - 1);
+        }
+      }
+
+      // Wheel — block native scroll entirely, feed the accumulator.
+      window.addEventListener(
+        "wheel",
+        (e: WheelEvent) => {
+          e.preventDefault();
+          feed(e.deltaY);
+        },
+        { passive: false },
+      );
+
+      // Touch.
+      let lastTouchY: number | null = null;
+      window.addEventListener(
+        "touchstart",
+        (e: TouchEvent) => {
+          lastTouchY = e.touches[0]?.clientY ?? null;
+        },
+        { passive: true },
+      );
+      window.addEventListener(
+        "touchmove",
+        (e: TouchEvent) => {
+          if (lastTouchY === null) return;
+          e.preventDefault();
+          const y = e.touches[0]?.clientY ?? lastTouchY;
+          const delta = lastTouchY - y;
+          lastTouchY = y;
+          feed(delta);
+        },
+        { passive: false },
+      );
+
+      // Keyboard arrows for testing.
+      window.addEventListener("keydown", (e: KeyboardEvent) => {
+        if (animating) return;
+        if (e.key === "ArrowDown") goStep(step + 1);
+        else if (e.key === "ArrowUp") goStep(step - 1);
+      });
+
+      console.log("[explore] unified slider ready", { slideCount, MAX_STEP });
+    });
+  </script>
+</BaseLayout>
