@@ -290,6 +290,18 @@ const country6 = t(locale, "quotes.6.country");
     direction: "up",
   });
 
+  // The overlapping pair (images 3 & 4): stronger FRAME parallax at
+  // different speeds, so they slide against each other (the inner-photo
+  // parallax is added per-image inside initImageCardEntrance).
+  createElementParallax("quote-block-2", ".quote__image--3", {
+    movement: 60,
+    direction: "up",
+  });
+  createElementParallax("quote-block-3", ".quote__image--4", {
+    movement: 120,
+    direction: "up",
+  });
+
   function initQuoteTextReveals() {
     // Quote body text — chars cascade up with a micro-rotation.
     // Reversible: scroll down plays the reveal, scroll back up undoes it.
@@ -366,11 +378,13 @@ const country6 = t(locale, "quotes.6.country");
   function initImageCardEntrance() {
     const images = gsap.utils.toArray<HTMLElement>(".quote__image");
 
-    // Force preserve-3d up the ancestor chain so rotateX renders in 3D
-    // instead of being flattened by an intermediate stacking context.
-    gsap.set(".testimonials, .quotes, .quote", {
-      transformStyle: "preserve-3d",
-    });
+    // NOTE: do NOT set preserve-3d on the ancestor chain. Each image's
+    // own transformPerspective renders its rotateX in 3D on its own; a
+    // shared preserve-3d space instead sorts overlapping images across
+    // blocks by their animated z (so an image still at z:-200 mid-entrance
+    // sinks behind a settled neighbour). With flat ancestors, overlapping
+    // images stack by DOM order — the later block (e.g. image 4) sits on
+    // top of the earlier one (image 3), as intended.
 
     images.forEach((picture) => {
       // Roller-shade entrance bound to the parent .quote (NOT the
@@ -381,7 +395,19 @@ const country6 = t(locale, "quotes.6.country");
       // landed at 100% (image already flat). .quote is position:relative
       // with min-height:100vh, so its bounding rect matches the visible
       // viewport position.
-      const triggerEl = picture.closest<HTMLElement>(".quote") ?? picture;
+      let triggerEl = picture.closest<HTMLElement>(".quote") ?? picture;
+      let entStart = "top 99%";
+      let entEnd = "top 80%";
+      // Overlapping pair: settle image 4 on the SAME block as image 3 (a
+      // touch later), so both land almost together and then coexist —
+      // flat, drifting against each other — for the whole overlap, which
+      // is where their parallax reads.
+      if (picture.classList.contains("quote__image--4")) {
+        triggerEl =
+          document.getElementById("quote-block-2") ?? triggerEl;
+        entStart = "top 86%";
+        entEnd = "top 66%";
+      }
 
       // True unroll: clip-path masks the image from the top down (so
       // the bottom edge appears first, then the rest "rolls out"), plus
@@ -404,11 +430,11 @@ const country6 = t(locale, "quotes.6.country");
       gsap.fromTo(
         picture,
         {
-          rotateX: -90,
-          z: -200,
-          scale: 0.6,
+          rotateX: -34,
+          z: -55,
+          scale: 0.93,
           opacity: 0,
-          filter: "blur(10px)",
+          filter: "blur(4px)",
           transformPerspective: 800,
           transformOrigin: "center top",
         },
@@ -421,13 +447,40 @@ const country6 = t(locale, "quotes.6.country");
           ease: "sine.out",
           scrollTrigger: {
             trigger: triggerEl,
-            start: "top 85%",
-            end: "top 30%",
-            scrub: 0.6,
+            // Land the image early and fast (short scrub window, high in
+            // the viewport) so it's flat well before the overlap zone —
+            // most of its scroll pass then happens settled, and the
+            // inner + frame parallax between the overlapping pair reads
+            // for much longer.
+            start: entStart,
+            end: entEnd,
+            scrub: 0.45,
             invalidateOnRefresh: true,
           },
         },
       );
+
+      // Internal parallax on EVERY photo: the oversized inner img (126%)
+      // drifts vertically within its frame as the card passes — the
+      // photo slides up/down revealing a bit more of itself, against the
+      // fixed frame. yPercent keeps the drift proportional to each
+      // frame's size (and safely inside the ~13% cushion). The
+      // overlapping pair (3 & 4) drifts a touch more.
+      const innerImg = picture.querySelector<HTMLElement>("img");
+      if (innerImg) {
+        const strong =
+          picture.classList.contains("quote__image--3") ||
+          picture.classList.contains("quote__image--4");
+        // Key the inner drift to the image's OWN block (not the possibly
+        // overridden entrance trigger) so it runs while the photo is on
+        // screen.
+        const ownBlock = picture.closest<HTMLElement>(".quote") ?? picture;
+        createElementParallax(ownBlock, innerImg, {
+          movement: strong ? 10 : 7,
+          direction: "down",
+          property: "yPercent",
+        });
+      }
     });
   }
 

@@ -81,11 +81,16 @@
     }
 
     img {
-      // Slightly larger than the frame so internal parallax drifts can run
-      // without revealing edges.
+      // Absolutely positioned so top/height % both resolve against the
+      // frame HEIGHT → a symmetric ≈13% cushion top and bottom (margin-%
+      // resolves against WIDTH, which broke the cushion on wide frames).
+      // The internal parallax can then drift the photo up/down within
+      // its frame without ever revealing an edge.
+      position: absolute;
+      top: -13%;
+      left: 0;
       width: 100%;
-      height: 112%;
-      margin-top: -6%;
+      height: 126%;
       object-fit: cover;
       will-change: transform;
     }
