@@ -1,3 +1,5 @@
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
 type W = Window &
   typeof globalThis & {
     lenis?: { stop?: () => void; start?: () => void };
@@ -93,7 +95,10 @@ function runIntro() {
     if (t < 1) {
       requestAnimationFrame(growFrame);
     } else {
-      setTimeout(runEdgeReveal, 100);
+      // Wait for EVERYTHING to be ready BEFORE the lines + curtains run.
+      // The lines reveal is the user-visible "loaded" cue, so it must
+      // never play while assets/textures/scripts are still warming up.
+      setTimeout(() => waitForFullReady(runEdgeReveal), 100);
     }
   }
 
@@ -109,7 +114,7 @@ function runIntro() {
       const w = (100 * e).toFixed(2) + "%";
       edges.forEach((edge) => setImp(edge, "width", w));
       if (t < 1) requestAnimationFrame(lineFrame);
-      else waitForFullReady(runOpenCurtains);
+      else runOpenCurtains();
     }
     requestAnimationFrame(lineFrame);
   }
@@ -126,17 +131,27 @@ function runIntro() {
     const gates = { load: false, reunions: false, textures: false, hero: false };
     let done = false;
 
+    function finish() {
+      // Force ScrollTrigger to recompute every pin/scrub against the
+      // FINAL layout (now that all imgs/textures are decoded). Without
+      // this, Hero/Interlude pins were getting baked at start-up — when
+      // Sanity/local imgs were still 0-sized — and the user saw broken
+      // scroll effects on first load (only a manual reload "fixed" them
+      // because the second pass came from cache with images sized).
+      try { ScrollTrigger.refresh(); } catch { /* gsap not loaded yet */ }
+      setTimeout(cb, 60);
+    }
     function maybeFinish() {
       if (done) return;
       if (gates.load && gates.reunions && gates.textures && gates.hero) {
         done = true;
-        setTimeout(cb, 60);
+        finish();
       }
     }
     function release() {
       if (done) return;
       done = true;
-      setTimeout(cb, 60);
+      finish();
     }
     window.setTimeout(release, MAX_MS);
 
