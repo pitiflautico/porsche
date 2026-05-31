@@ -109,9 +109,83 @@ function runIntro() {
       const w = (100 * e).toFixed(2) + "%";
       edges.forEach((edge) => setImp(edge, "width", w));
       if (t < 1) requestAnimationFrame(lineFrame);
-      else waitForHeroPlaying(runOpenCurtains);
+      else waitForFullReady(runOpenCurtains);
     }
     requestAnimationFrame(lineFrame);
+  }
+
+  // PHASE 2b — real preloader. Don't open the curtains until everything
+  // the user will see/touch immediately is actually ready: every
+  // sub-resource of the HTML (window.load), Reunions' init has exposed
+  // its controller (window.reunionsSlider), the WebGL texture pool
+  // (.s5-img-pool + .s5-people-layer imgs) is fully decoded, AND the
+  // hero video is playing. Each gate has its own safety; the whole
+  // thing is capped at MAX_MS so a single hang never blocks the intro.
+  function waitForFullReady(cb: () => void) {
+    const MAX_MS = 8000;
+    const gates = { load: false, reunions: false, textures: false, hero: false };
+    let done = false;
+
+    function maybeFinish() {
+      if (done) return;
+      if (gates.load && gates.reunions && gates.textures && gates.hero) {
+        done = true;
+        setTimeout(cb, 60);
+      }
+    }
+    function release() {
+      if (done) return;
+      done = true;
+      setTimeout(cb, 60);
+    }
+    window.setTimeout(release, MAX_MS);
+
+    // 1. window.load — every <img>, <link>, <script> resolved.
+    if (document.readyState === "complete") {
+      gates.load = true;
+      maybeFinish();
+    } else {
+      window.addEventListener(
+        "load",
+        () => { gates.load = true; maybeFinish(); },
+        { once: true },
+      );
+    }
+
+    // 2. window.reunionsSlider — Reunions' init has run and exposed its
+    //    API (so the section-slider can drive it the moment we reveal).
+    (function pollReunions(i: number) {
+      if (done) return;
+      const rs = (window as unknown as { reunionsSlider?: unknown }).reunionsSlider;
+      if (rs) { gates.reunions = true; maybeFinish(); return; }
+      if (i >= 80) { gates.reunions = true; maybeFinish(); return; } // ~8s
+      window.setTimeout(() => pollReunions(i + 1), 100);
+    })(0);
+
+    // 3. WebGL texture pool decoded — the imgs Reunions will upload to
+    //    its canvas. If they aren't ready when the curtain opens you see
+    //    a frame with no car.
+    (function preloadTextures() {
+      const imgs = Array.from(
+        document.querySelectorAll<HTMLImageElement>(
+          ".s5-img-pool img, .s5-people-layer img",
+        ),
+      );
+      if (imgs.length === 0) { gates.textures = true; maybeFinish(); return; }
+      let remaining = imgs.length;
+      const tick = () => {
+        remaining--;
+        if (remaining <= 0) { gates.textures = true; maybeFinish(); }
+      };
+      imgs.forEach((img) => {
+        if (img.complete && img.naturalWidth > 0) { tick(); return; }
+        img.addEventListener("load", tick, { once: true });
+        img.addEventListener("error", tick, { once: true });
+      });
+    })();
+
+    // 4. Hero video actually playing (existing behavior).
+    waitForHeroPlaying(() => { gates.hero = true; maybeFinish(); });
   }
 
   // Gate PHASE 3 (curtain open) on the hero video actually playing —
