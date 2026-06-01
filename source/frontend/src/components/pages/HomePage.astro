@@ -64,34 +64,41 @@ const L: Locale = locale;
        scroll jumps straight from Quotes to Stories. They are pulled
        out of the flow only once `.slider-layer` is applied (by the
        controller), and shown when `.slider-layer--active` is set. */
-    #reunions.slider-layer,
-    #gallery.slider-layer,
-    #stories.slider-layer {
+    /* The `html` prefix raises specificity to (1,1,1) so these WIN over
+       Reunions' own `#reunions.reunions { position: relative !important }`
+       (1,1,0). Both carry !important, so on an equal-specificity tie the
+       later-declared rule would win — and in the production CSS bundle
+       Reunions' rule is emitted AFTER this block, which silently broke
+       the layer (position stayed relative, sections never left the flow,
+       so scroll ran 4→5→6 in-document instead of via the curtain). */
+    html #reunions.slider-layer,
+    html #gallery.slider-layer,
+    html #stories.slider-layer {
       position: fixed !important;
       inset: 0 !important;
       width: 100vw !important;
       height: 100vh !important;
       min-height: 100vh !important;
       max-height: 100vh !important;
-      z-index: 40;
+      z-index: 40 !important;
       opacity: 0;
       visibility: hidden;
       overflow: hidden;
     }
-    #reunions.slider-layer--active,
-    #gallery.slider-layer--active,
-    #stories.slider-layer--active {
+    html #reunions.slider-layer--active,
+    html #gallery.slider-layer--active,
+    html #stories.slider-layer--active {
       opacity: 1;
       visibility: visible;
       /* Above Gallery's .modal-nav arrows (z-index:100), which escape to
          the root stacking context (their .section-gallery has no z-index
          of its own) and would otherwise show over the Reunions layer. */
-      z-index: 200;
+      z-index: 200 !important;
     }
     /* Make the inner content of each layer fill the viewport. */
-    #gallery.slider-layer .slider-gallery,
-    #gallery.slider-layer .gallery-grid,
-    #gallery.slider-layer .gallery-feature {
+    html #gallery.slider-layer .slider-gallery,
+    html #gallery.slider-layer .gallery-grid,
+    html #gallery.slider-layer .gallery-feature {
       width: 100% !important;
       height: 100% !important;
     }
