@@ -102,8 +102,61 @@
             mask-size: 8% 100%;
   }
 
+  // Moving light-focus that sweeps across the logo's silhouette while
+  // the preloader is waiting for everything to be ready. It sits on top
+  // of the masked logo image; the same logo SVG masks it so the light
+  // only shows over the lettering, and `screen` blends it as a highlight.
   &__brand-shine {
-    display: none;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 1;
+
+    background: linear-gradient(
+      105deg,
+      transparent 42%,
+      rgba(255, 255, 255, 0.85) 50%,
+      transparent 58%
+    );
+    background-repeat: no-repeat;
+    background-size: 220% 100%;
+    background-position: 130% 0;
+
+    -webkit-mask-image: url("/images/logo-porsche.svg");
+            mask-image: url("/images/logo-porsche.svg");
+    -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+    -webkit-mask-position: center center;
+            mask-position: center center;
+    -webkit-mask-size: contain;
+            mask-size: contain;
+
+    mix-blend-mode: screen;
+    will-change: background-position, opacity;
+  }
+
+  // Activated by the preloader (intro.ts) while it waits: the focus
+  // sweeps left→right on a loop until everything is ready.
+  &__brand.is-preloading &__brand-shine {
+    animation: intro-shine-sweep 1.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+}
+
+@keyframes intro-shine-sweep {
+  0% {
+    background-position: 135% 0;
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    background-position: -35% 0;
+    opacity: 0;
   }
 }
 

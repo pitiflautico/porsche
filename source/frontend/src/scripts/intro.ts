@@ -134,7 +134,11 @@ function runIntro() {
     const gates = { load: false, reunions: false, textures: false, hero: false };
     let done = false;
 
+    // Kick off the light-focus sweeping across the logo while we wait.
+    brand!.classList.add("is-preloading");
+
     function finish() {
+      brand!.classList.remove("is-preloading");
       // Force ScrollTrigger to recompute every pin/scrub against the
       // FINAL layout (now that all imgs/textures are decoded). Without
       // this, Hero/Interlude pins were getting baked at start-up — when
