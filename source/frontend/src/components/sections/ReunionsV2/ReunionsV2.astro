@@ -719,13 +719,31 @@ const BARS_IDLE = (() => {
     const maskCanvas = document.querySelector<HTMLCanvasElement>(
       "[data-mask-overlay]",
     );
-    const blobTrans = maskCanvas
-      ? new BlobTransition({
+    // CRITICAL: the BlobTransition constructor THROWS if WebGL is
+    // unavailable (no GPU, or — more likely in prod — the per-page WebGL
+    // context limit is hit: Reunions already has s5-canvas, and the
+    // section-slider owns another full-screen blob canvas). An uncaught
+    // throw here aborts the entire Reunions init, so window.reunionsSlider
+    // is never exposed and the master slider hangs forever on its
+    // ready() poll (Quotes→cars transition never fires). Guard it: every
+    // blobTrans user already handles null by doing an instant swap, and
+    // under external control the section-slider runs its OWN curtain, so
+    // Reunions doesn't need this one at all.
+    let blobTrans: BlobTransition | null = null;
+    const externalControl = (window as { __reunionsExternalControl?: boolean })
+      .__reunionsExternalControl === true;
+    if (maskCanvas && !externalControl) {
+      try {
+        blobTrans = new BlobTransition({
           canvas: maskCanvas,
           color: "#000000",
           duration: 900,
-        })
-      : null;
+        });
+      } catch (e) {
+        console.warn("section-5: BlobTransition unavailable, instant swaps", e);
+        blobTrans = null;
+      }
+    }
 
     // ──────────────────────────────────────────────────────────────────
     // WebGL setup

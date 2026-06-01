@@ -85,11 +85,20 @@ export function initSectionSlider() {
   ready(() => {
     const slider = w.reunionsSlider!;
     const LAST_CAR = slider.slideCount - 1;
-    const blob = new BlobTransition({
-      canvas: canvasEl!,
-      color: "#000000",
-      duration: 1400,
-    });
+    // Guard the WebGL curtain: if it throws (no GPU / context limit hit),
+    // fall back to instant swaps so section changes still WORK — never
+    // let a curtain failure freeze navigation.
+    let blob: BlobTransition | null = null;
+    try {
+      blob = new BlobTransition({
+        canvas: canvasEl!,
+        color: "#000000",
+        duration: 1400,
+      });
+    } catch (e) {
+      console.warn("[section-slider] curtain unavailable, instant swaps", e);
+      blob = null;
+    }
 
     let mode: Mode = "quotes";
     let car = 0;
@@ -131,6 +140,7 @@ export function initSectionSlider() {
     }
 
     async function curtainSwap(apply: () => void) {
+      if (!blob) { apply(); return; } // no curtain → instant swap
       canvasEl!.style.opacity = "1";
       blob.setProgress(0);
       apply();
@@ -183,8 +193,7 @@ export function initSectionSlider() {
       // Cover in black, recompose the flow, then LAND Gallery at the top
       // of the viewport before revealing. Lenis's immediate scroll only
       // applies on its next rAF tick, so we re-assert across two frames.
-      canvasEl!.style.opacity = "1";
-      blob.setProgress(0);
+      if (blob) { canvasEl!.style.opacity = "1"; blob.setProgress(0); }
       showReunions(false);
       setFlow("gallery");
       lockScroll(false);
@@ -193,8 +202,7 @@ export function initSectionSlider() {
       await nextFrame();
       scrollToY(galleryEl!.offsetTop); // re-assert after Lenis ticks
       await nextFrame();
-      await blob.play("out");          // reveal — Gallery now fills 100vh
-      canvasEl!.style.opacity = "0";
+      if (blob) { await blob.play("out"); canvasEl!.style.opacity = "0"; }
       mode = "gallery"; animating = false; cooldown = performance.now() + 300;
     }
     async function galleryToReunions() {
