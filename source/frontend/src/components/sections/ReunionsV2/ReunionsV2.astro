@@ -926,35 +926,52 @@ const BARS_IDLE = (() => {
       return sh;
     }
 
-    const program = gl.createProgram()!;
-    gl.attachShader(program, compile(gl.VERTEX_SHADER, VERT));
-    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAG));
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      throw new Error("Program link: " + gl.getProgramInfoLog(program));
+    // WebGL program + uniforms. Guarded: if `gl` is null (no GPU, or the
+    // per-page WebGL context limit was hit) we skip the whole pipeline so
+    // the init NEVER throws here — Reunions falls back to instant slide
+    // swaps and, crucially, still reaches the code that exposes
+    // window.reunionsSlider. Without this guard a null gl crashed at
+    // createProgram(), aborting init, so the master slider hung forever.
+    let program: WebGLProgram | null = null;
+    let uProgress: WebGLUniformLocation | null = null;
+    let uSize: WebGLUniformLocation | null = null;
+    let uTexSizeA: WebGLUniformLocation | null = null;
+    let uTexSizeB: WebGLUniformLocation | null = null;
+    let uTextureA: WebGLUniformLocation | null = null;
+    let uTextureB: WebGLUniformLocation | null = null;
+    let uRevealMode: WebGLUniformLocation | null = null;
+    let uSeed: WebGLUniformLocation | null = null;
+    if (gl) {
+      program = gl.createProgram()!;
+      gl.attachShader(program, compile(gl.VERTEX_SHADER, VERT));
+      gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAG));
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        throw new Error("Program link: " + gl.getProgramInfoLog(program));
+      }
+      gl.useProgram(program);
+
+      // Fullscreen quad (two triangles).
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+        gl.STATIC_DRAW,
+      );
+      const aPos = gl.getAttribLocation(program, "aPos");
+      gl.enableVertexAttribArray(aPos);
+      gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+      uProgress = gl.getUniformLocation(program, "uProgress");
+      uSize = gl.getUniformLocation(program, "uSize");
+      uTexSizeA = gl.getUniformLocation(program, "uTexSizeA");
+      uTexSizeB = gl.getUniformLocation(program, "uTexSizeB");
+      uTextureA = gl.getUniformLocation(program, "uTextureA");
+      uTextureB = gl.getUniformLocation(program, "uTextureB");
+      uRevealMode = gl.getUniformLocation(program, "uRevealMode");
+      uSeed = gl.getUniformLocation(program, "uSeed");
     }
-    gl.useProgram(program);
-
-    // Fullscreen quad (two triangles).
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
-      gl.STATIC_DRAW,
-    );
-    const aPos = gl.getAttribLocation(program, "aPos");
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
-    const uProgress = gl.getUniformLocation(program, "uProgress");
-    const uSize = gl.getUniformLocation(program, "uSize");
-    const uTexSizeA = gl.getUniformLocation(program, "uTexSizeA");
-    const uTexSizeB = gl.getUniformLocation(program, "uTexSizeB");
-    const uTextureA = gl.getUniformLocation(program, "uTextureA");
-    const uTextureB = gl.getUniformLocation(program, "uTextureB");
-    const uRevealMode = gl.getUniformLocation(program, "uRevealMode");
-    const uSeed = gl.getUniformLocation(program, "uSeed");
     let revealMode = 0;
     // Seed is regenerated at the start of every transition (slide-to-
     // slide or section-to-section) so the ink-blot silhouette never
@@ -1013,6 +1030,9 @@ const BARS_IDLE = (() => {
     }
 
     function render() {
+      // No WebGL → nothing to draw (the slide swap is handled instantly
+      // elsewhere). Guards a null gl/program from a failed context.
+      if (!gl || !program) return;
       // Defensive: if either texture isn't ready yet, skip the draw.
       // Binding an undefined texture defaults to the GL "null" texture
       // and the shader samples solid black — which is exactly what
@@ -1094,19 +1114,21 @@ const BARS_IDLE = (() => {
     // ──────────────────────────────────────────────────────────────────
     // Boot
     // ──────────────────────────────────────────────────────────────────
-    Promise.all(imgEls.map(whenImageReady)).then((imgs) => {
-      imgs.forEach((img, i) => {
-        textures[i] = makeTexture(img);
-        texSizes[i] = [img.naturalWidth, img.naturalHeight];
+    if (gl) {
+      Promise.all(imgEls.map(whenImageReady)).then((imgs) => {
+        imgs.forEach((img, i) => {
+          textures[i] = makeTexture(img);
+          texSizes[i] = [img.naturalWidth, img.naturalHeight];
+        });
+        animFrom = 0;
+        animTo = 0;
+        progress = 0;
+        // First render — but force one more on the next frame, after the
+        // browser has laid out the canvas, so the resolution is correct.
+        render();
+        requestAnimationFrame(render);
       });
-      animFrom = 0;
-      animTo = 0;
-      progress = 0;
-      // First render — but force one more on the next frame, after the
-      // browser has laid out the canvas, so the resolution is correct.
-      render();
-      requestAnimationFrame(render);
-    });
+    }
 
     window.addEventListener("resize", () => { render(); });
     window.addEventListener("load", () => { render(); });
