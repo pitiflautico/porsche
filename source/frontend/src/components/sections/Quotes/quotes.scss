@@ -81,16 +81,14 @@
     }
 
     img {
-      // Absolutely positioned so top/height % both resolve against the
-      // frame HEIGHT → a symmetric ≈13% cushion top and bottom (margin-%
-      // resolves against WIDTH, which broke the cushion on wide frames).
-      // The internal parallax can then drift the photo up/down within
-      // its frame without ever revealing an edge.
-      position: absolute;
-      top: -13%;
-      left: 0;
+      // Match porschereunions.com: img fills the frame exactly. Without
+      // oversize, .quote__image--6 (which has no width/aspect in desktop)
+      // can fall back to the img's intrinsic size, so the frame is
+      // visible. The internal parallax was driving the regression on --6
+      // because the oversized img only fed the frame via height:%, which
+      // resolves to 0 when the frame has no explicit height.
       width: 100%;
-      height: 126%;
+      height: 100%;
       object-fit: cover;
       will-change: transform;
     }
@@ -179,7 +177,6 @@
     bottom: 0;
     min-height: auto;
     flex: none;
-
 
     @media (max-width: ($bp-sm - 1px)) {
       bottom: 25%;

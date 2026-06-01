@@ -127,7 +127,10 @@ function runIntro() {
   // hero video is playing. Each gate has its own safety; the whole
   // thing is capped at MAX_MS so a single hang never blocks the intro.
   function waitForFullReady(cb: () => void) {
-    const MAX_MS = 8000;
+    // Hard cap: only as last-resort safety. The intent is to wait for
+    // real readiness, not finish on a timer. 20s gives every gate room
+    // to actually complete on a cold load.
+    const MAX_MS = 20000;
     const gates = { load: false, reunions: false, textures: false, hero: false };
     let done = false;
 
@@ -230,7 +233,9 @@ function runIntro() {
       setTimeout(cb, 100);
     };
     v.addEventListener("playing", finish, { once: true });
-    const timer = window.setTimeout(finish, 3000);
+    // 15s — long enough for slow first-load video buffering on shaky
+    // networks. The outer preload cap (MAX_MS) is the ultimate safety.
+    const timer = window.setTimeout(finish, 15000);
   }
 
   // PHASE 3 — Curtains separate vertically; logo migrates to the header

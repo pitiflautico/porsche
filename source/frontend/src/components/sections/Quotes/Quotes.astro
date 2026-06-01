@@ -460,27 +460,10 @@ const country6 = t(locale, "quotes.6.country");
         },
       );
 
-      // Internal parallax on EVERY photo: the oversized inner img (126%)
-      // drifts vertically within its frame as the card passes — the
-      // photo slides up/down revealing a bit more of itself, against the
-      // fixed frame. yPercent keeps the drift proportional to each
-      // frame's size (and safely inside the ~13% cushion). The
-      // overlapping pair (3 & 4) drifts a touch more.
-      const innerImg = picture.querySelector<HTMLElement>("img");
-      if (innerImg) {
-        const strong =
-          picture.classList.contains("quote__image--3") ||
-          picture.classList.contains("quote__image--4");
-        // Key the inner drift to the image's OWN block (not the possibly
-        // overridden entrance trigger) so it runs while the photo is on
-        // screen.
-        const ownBlock = picture.closest<HTMLElement>(".quote") ?? picture;
-        createElementParallax(ownBlock, innerImg, {
-          movement: strong ? 10 : 7,
-          direction: "down",
-          property: "yPercent",
-        });
-      }
+      // (No internal-img translation parallax: it required oversizing
+      // the img, which broke quote__image--6 — that frame has no width
+      // /aspect in desktop and was falling back to the img's intrinsic
+      // size. The img now fills the frame exactly, matching the live.)
     });
   }
 
