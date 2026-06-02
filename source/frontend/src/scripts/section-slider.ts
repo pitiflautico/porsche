@@ -108,8 +108,16 @@ export function initSectionSlider() {
     const OVERSCROLL_MAX = () => Math.round(window.innerHeight * 0.4);
 
     function lockScroll(lock: boolean) {
-      document.documentElement.style.overflow = lock ? "hidden" : "";
-      document.body.style.overflow = lock ? "hidden" : "";
+      const html = document.documentElement;
+      const body = document.body;
+      html.style.overflow = lock ? "hidden" : "";
+      body.style.overflow = lock ? "hidden" : "";
+      // iOS Safari IGNORES overflow:hidden for touch scrolling — the page
+      // keeps rubber-banding behind a "locked" slide. touch-action:none +
+      // overscroll-behavior:none actually stop the native touch scroll, so
+      // the slider's own touch handlers fully own the gesture while locked.
+      body.style.touchAction = lock ? "none" : "";
+      html.style.overscrollBehavior = lock ? "none" : "";
       const lenis = getLenis();
       if (lock) lenis?.stop?.();
       else lenis?.start?.();

@@ -1382,6 +1382,22 @@ const BARS_IDLE = (() => {
       // Click on the hitbox = play the hovered person's audio.
       box.addEventListener("click", () => {
         if (!box.classList.contains("is-hot")) return;
+        // On touch (no hover), mouseenter never fires, so a tap must ALSO
+        // do what hover does on desktop: focus the chapter and reveal the
+        // tooltip (name + signature + waveform) BEFORE playing the audio.
+        if (window.matchMedia("(hover: none)").matches) {
+          const layer = box.closest<HTMLElement>(".s5-hitbox-layer");
+          const slideIdx = Number(layer?.dataset.slide ?? -1);
+          const chapter = Number(box.dataset.chapter);
+          if (slideIdx >= 0) {
+            setCursorPlayActive(true);
+            focusChapter(slideIdx, chapter);
+            const group = (slideData[slideIdx]?.people ?? []).filter(
+              (p) => p.chapter === chapter,
+            );
+            if (group.length) updateTooltip(group);
+          }
+        }
         tooltipAudio?.click();
       });
     });

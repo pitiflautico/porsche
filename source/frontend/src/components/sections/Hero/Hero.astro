@@ -29,53 +29,64 @@ const { title } = Astro.props;
   import { createParallaxAnimation } from "../../../utils/parallaxUtils.js";
   gsap.registerPlugin(ScrollTrigger);
 
-  const isMobile = window.matchMedia("(max-width: 767px)").matches;
-
-  const selector = isMobile ? ".video--mobile" : ".video--desktop";
-  const video = document.querySelector<HTMLVideoElement>(selector);
+  const mobileMq = window.matchMedia("(max-width: 767px)");
   const videoContainer = document.querySelector<HTMLElement>(".hero__video");
 
-  if (video) {
-    const base = video.dataset.src;
-
-    const canPlayWebm = video.canPlayType("video/webm") !== "";
-
-    const source = document.createElement("source");
-    source.src = canPlayWebm ? `${base}.webm` : `${base}.mp4`;
-    source.type = canPlayWebm ? "video/webm" : "video/mp4";
-
-    video.muted = true;
-    video.loop = true;
-    video.autoplay = false;
-    video.playsInline = true;
-    video.preload = "auto";
-
-    video.appendChild(source);
-    video.load();
-
-    const startVideo = () => {
-      const reveal = () => {
-        videoContainer?.classList.add("is-ready");
-      };
-      const onPlaying = () => {
-        if (typeof video.requestVideoFrameCallback === "function") {
-          video.requestVideoFrameCallback(() => reveal());
-        } else {
-          reveal();
-        }
-      };
-      video.addEventListener("playing", onPlaying, { once: true });
-      video.play().catch(() => {
-        video.removeEventListener("playing", onPlaying);
-      });
+  // Load + play the correct video for the current orientation/size. CSS
+  // shows .video--mobile (portrait) or .video--desktop (landscape); we
+  // inject the source into whichever one is shown and play it. Re-runs on
+  // orientation change so a rotate doesn't leave the shown <video> empty
+  // (black) while the hidden one keeps playing.
+  const loadedFor = new WeakSet<HTMLVideoElement>();
+  function setupVideo(video: HTMLVideoElement) {
+    if (!loadedFor.has(video)) {
+      const base = video.dataset.src;
+      const canPlayWebm = video.canPlayType("video/webm") !== "";
+      const source = document.createElement("source");
+      source.src = canPlayWebm ? `${base}.webm` : `${base}.mp4`;
+      source.type = canPlayWebm ? "video/webm" : "video/mp4";
+      video.muted = true;
+      video.loop = true;
+      video.autoplay = false;
+      video.playsInline = true;
+      video.preload = "auto";
+      video.appendChild(source);
+      video.load();
+      loadedFor.add(video);
+    }
+    const reveal = () => videoContainer?.classList.add("is-ready");
+    const onPlaying = () => {
+      if (typeof video.requestVideoFrameCallback === "function") {
+        video.requestVideoFrameCallback(() => reveal());
+      } else {
+        reveal();
+      }
     };
-
-    // Start the video immediately — don't wait for the preloader to
-    // finish. The curtains hide it until they open, but we want the
-    // first decoded frames ready BEFORE that, so the reveal lands on
-    // a moving picture, not a poster freeze.
-    startVideo();
+    video.addEventListener("playing", onPlaying, { once: true });
+    video.play().catch(() => {
+      video.removeEventListener("playing", onPlaying);
+    });
   }
+
+  function activeVideo(): HTMLVideoElement | null {
+    const sel = mobileMq.matches ? ".video--mobile" : ".video--desktop";
+    return document.querySelector<HTMLVideoElement>(sel);
+  }
+
+  // Start the active video immediately — don't wait for the preloader.
+  const initial = activeVideo();
+  if (initial) setupVideo(initial);
+
+  // On rotate / breakpoint cross, set up the newly-shown video and pause
+  // the other so we never have an invisible track still playing.
+  mobileMq.addEventListener("change", () => {
+    const now = activeVideo();
+    const other = mobileMq.matches
+      ? document.querySelector<HTMLVideoElement>(".video--desktop")
+      : document.querySelector<HTMLVideoElement>(".video--mobile");
+    other?.pause();
+    if (now) setupVideo(now);
+  });
 
   // ──────────────────────────────────────────────────────────────────
   // Hero title reveal (v1 formula): wipes from bottom + y/skew relax
